@@ -95,7 +95,7 @@ Paso │ Agente A (Backend Core)               │ Agente B (Backend Aux)       
 ## FASE 1 — Autenticación, Autorización y Seguridad (Push 2)
 
 ### [C-02] `auth-usuarios-and-rbac`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado y archivado (`openspec/changes/archive/2026-11-03-c-02-auth-usuarios-and-rbac/`)
 - **Scope**: Módulo `usuarios` completo (`/auth`, `/usuarios`, `/eventos`), separación de los dos grupos de rutas en `main.py`, registro de `IntentoAcceso` en sesión independiente y auditoría transaccional en `EventoSeguridad` (Ejercicios 4, 5 y 7)
   - Esquemas en `parcial/app/modules/usuarios/schemas.py`: DTOs con `extra="forbid"`, normalización de email, validación de contraseña entre 1 y 72 bytes en UTF-8 (`422` si supera 72 bytes, Caso `C-01`), validación de `rol IN ('ADMIN', 'VENDEDOR', 'CLIENTE')` y de `vence_en` con zona horaria obligatoria y fecha futura (`422` si es naive o pasado, Caso `C-07`)
   - Repositorios y `UsuariosUnitOfWork` (`parcial/app/modules/usuarios/repository.py` y `unit_of_work.py`): `UsuarioRepository`, `AsignacionRolRepository` (consulta de roles vigentes con `revocada_en IS NULL AND (vence_en IS NULL OR vence_en > now())`, conteo de administradores vigentes y cierre de asignación vencida al reasignar), `IntentoAccesoRepository`, `EventoSeguridadRepository` y `ClienteRepository` compartido para el auto-registro

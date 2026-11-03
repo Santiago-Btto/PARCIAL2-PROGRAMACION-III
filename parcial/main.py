@@ -17,6 +17,7 @@ from app.modules.editoriales.router import router as editoriales_router
 from app.modules.generos.router import router as generos_router
 from app.modules.health.router import router as health_router
 from app.modules.libros.router import router as libros_router
+from app.modules.usuarios.router import auth_router, eventos_router, usuarios_router
 from app.modules.ventas.router import router as ventas_router
 
 logging.basicConfig(
@@ -98,9 +99,12 @@ async def manejar_error_inesperado(_: Request, exc: Exception) -> JSONResponse:
 # 1. Grupo abierto: no pide sesión (o son rutas de /auth para iniciarla o cambiar clave).
 grupo_abierto = APIRouter()
 grupo_abierto.include_router(health_router)
+grupo_abierto.include_router(auth_router)
 
 # 2. Grupo protegido: lleva montado una sola vez el control de cambio obligatorio de contraseña (RN-06).
 grupo_protegido = APIRouter(dependencies=[Depends(verificar_cambio_password_resuelto)])
+grupo_protegido.include_router(usuarios_router)
+grupo_protegido.include_router(eventos_router)
 
 # Temporalmente se incluyen los routers actuales hasta separar sus rutas abiertas/protegidas en Push 2 y 3.
 for router in (
