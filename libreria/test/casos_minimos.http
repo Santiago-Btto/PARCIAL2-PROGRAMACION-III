@@ -1,0 +1,144 @@
+# Casos de prueba mínimos C-01 a C-08.
+# Requisito: base recién cargada con `python -m scripts.seed` y servidor levantado.
+# Ejecutar las peticiones EN ORDEN (VS Code REST Client o el cliente HTTP de PyCharm).
+# C-06 va antes que C-05 a propósito: un INSERT rechazado por la base igual consume
+# un valor de la secuencia, y así la venta válida queda con id 2 como en la consigna.
+
+@base = http://localhost:8000
+
+### C-01 · Parámetro de ruta que no es entero
+# Esperado: 422. FastAPI valida el tipo antes de llamar al handler (no hay consulta en la consola).
+GET {{base}}/libros/abc
+
+### C-01 · Otro recurso, mismo resultado
+# Esperado: 422
+GET {{base}}/ventas/uno
+
+### C-02 · ISBN repetido (978-950-07-0386-1 es Rayuela, cargado por el seed)
+# Esperado: 409 {"detail": "Ya existe un libro con ese ISBN."}  (mensaje propio, sin texto de la base)
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-07-0386-1",
+  "titulo": "Rayuela (otra edición)",
+  "precio": "26000.00",
+  "stock": 2,
+  "editorial_id": 1,
+  "genero_id": 1,
+  "autores": [{ "autor_id": 1, "rol": "autor", "orden": 1 }]
+}
+
+### C-02 · Email repetido (ana@example.com ya existe; se compara en minúsculas)
+# Esperado: 409 {"detail": "Ya existe un cliente con ese email."}
+POST {{base}}/clientes/
+Content-Type: application/json
+
+{
+  "nombre": "Otra Ana",
+  "email": "ANA@example.com"
+}
+
+### C-03 · Segundo perfil para el mismo cliente (el cliente 1 ya tiene perfil)
+# Esperado: 409 {"detail": "El cliente ya tiene un perfil."}
+POST {{base}}/clientes/1/perfil
+Content-Type: application/json
+
+{
+  "telefono": "261 555-0199",
+  "direccion": "Belgrano 50, Mendoza"
+}
+
+### C-04 · Libro con una editorial inexistente
+# Esperado: 409 {"detail": "La editorial indicada no existe."}
+# El service no consulta antes si la editorial existe: escribe y traduce el rechazo de la FK.
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0100-1",
+  "titulo": "Libro sin editorial real",
+  "precio": "15000.00",
+  "stock": 1,
+  "editorial_id": 999,
+  "autores": [{ "autor_id": 1, "rol": "autor", "orden": 1 }]
+}
+
+### C-04 · Libro con un autor inexistente
+# Esperado: 409 {"detail": "Alguno de los autores indicados no existe."}
+# El libro tampoco queda creado: libro y autorías van en la misma transacción.
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0101-8",
+  "titulo": "Libro con autor fantasma",
+  "precio": "15000.00",
+  "stock": 1,
+  "editorial_id": 1,
+  "autores": [
+    { "autor_id": 1, "rol": "autor", "orden": 1 },
+    { "autor_id": 999, "rol": "traductor", "orden": 2 }
+  ]
+}
+
+### C-06 · Venta válida con dos renglones (el ejemplo de la consigna)
+# Esperado: 201 con id 2, renglones creados, precio_unitario copiado de cada libro
+# (25000.00 y 27000.00), subtotales 50000.00 y 27000.00 y total "77000.00" calculado por el servidor.
+# En el log del servidor, ~0,5 s DESPUÉS de la respuesta: "Comprobante de la venta 2 enviado a tomas@example.com".
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{
+  "cliente_id": 2,
+  "renglones": [
+    { "libro_id": 1, "cantidad": 2 },
+    { "libro_id": 4, "cantidad": 1 }
+  ]
+}
+
+### C-05 · Venta con un libro inexistente
+# Esperado: 409 {"detail": "No existe el libro con id 999."}
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{
+  "cliente_id": 2,
+  "renglones": [{ "libro_id": 999, "cantidad": 1 }]
+}
+
+### C-05 · Venta con un cliente inexistente
+# Esperado: 409 {"detail": "El cliente indicado no existe."}
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{
+  "cliente_id": 999,
+  "renglones": [{ "libro_id": 2, "cantidad": 1 }]
+}
+
+### C-07 · Detalle de un libro con UN autor
+# Esperado: 200. Con SQL_ECHO=true la consola muestra 2 consultas:
+#   1) libro JOIN editorial LEFT OUTER JOIN genero
+#   2) libro_autor JOIN autor WHERE libro_autor.libro_id IN (...)
+GET {{base}}/libros/1
+
+### C-07 · Detalle de un libro con TRES autores
+# Esperado: 200 y las MISMAS 2 consultas que el caso anterior.
+GET {{base}}/libros/5
+
+### C-07 · Detalle de una venta con UN renglón
+# Esperado: 200. 2 consultas: venta JOIN cliente; renglon_venta JOIN libro WHERE venta_id IN (...)
+GET {{base}}/ventas/1
+
+### C-07 · Detalle de una venta con DOS renglones (la creada en C-06)
+# Esperado: 200 y las MISMAS 2 consultas.
+GET {{base}}/ventas/2
+
+### C-08 · Búsqueda por título con ' OR '1'='1 (texto codificado en la URL)
+# Esperado: 200 con []. El texto viaja como parámetro ligado del ILIKE: se busca literalmente.
+GET {{base}}/libros/?titulo=%27%20OR%20%271%27%3D%271
+
+### C-08 · Control: la búsqueda funciona y no distingue mayúsculas
+# Esperado: 200 con Rayuela
+GET {{base}}/libros/?titulo=RAYU

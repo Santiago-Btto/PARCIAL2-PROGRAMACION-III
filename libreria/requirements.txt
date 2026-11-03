@@ -1,0 +1,7 @@
+fastapi[standard]>=0.111
+sqlmodel>=0.0.24
+sqlalchemy[asyncio]>=2.0.30
+asyncpg>=0.30
+alembic>=1.13
+python-dotenv>=1.0
+email-validator>=2.1

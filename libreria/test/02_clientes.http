@@ -1,0 +1,88 @@
+@base = http://localhost:8000
+
+# Ejecutar después de seed y de casos_minimos.http. "# @name" guarda la respuesta del alta
+# y las peticiones siguientes usan ese id (sintaxis de REST Client de VS Code).
+
+### Alta (el email se guarda en minúsculas)
+# Esperado: 201 con "perfil": null
+# @name nuevoCliente
+POST {{base}}/clientes/
+Content-Type: application/json
+
+{ "nombre": "Lucía Gómez", "email": "Lucia@Example.com" }
+
+### Alta con email inválido
+# Esperado: 422
+POST {{base}}/clientes/
+Content-Type: application/json
+
+{ "nombre": "Sin arroba", "email": "lucia.example.com" }
+
+### Detalle con perfil (objeto, no lista)
+# Esperado: 200 con "perfil": {...}
+GET {{base}}/clientes/1
+
+### Detalle sin perfil
+# Esperado: 200 con "perfil": null
+GET {{base}}/clientes/2
+
+### Detalle inexistente
+# Esperado: 404
+GET {{base}}/clientes/999
+
+### Alta del perfil
+# Esperado: 201
+POST {{base}}/clientes/{{nuevoCliente.response.body.$.id}}/perfil
+Content-Type: application/json
+
+{ "telefono": "261 555-0303", "direccion": "Colón 330, Mendoza" }
+
+### Perfil para un cliente inexistente
+# Esperado: 404 {"detail": "El cliente no existe."}
+POST {{base}}/clientes/999/perfil
+Content-Type: application/json
+
+{ "telefono": "261 555-0999", "direccion": "Nada 0" }
+
+### Segundo perfil (RN-09)
+# Esperado: 409
+POST {{base}}/clientes/{{nuevoCliente.response.body.$.id}}/perfil
+Content-Type: application/json
+
+{ "telefono": "261 555-0304", "direccion": "Otra 1" }
+
+### PATCH parcial
+# Esperado: 200 con el cliente y su perfil
+PATCH {{base}}/clientes/{{nuevoCliente.response.body.$.id}}
+Content-Type: application/json
+
+{ "nombre": "Lucía B. Gómez" }
+
+### PATCH con email de otro cliente
+# Esperado: 409
+PATCH {{base}}/clientes/{{nuevoCliente.response.body.$.id}}
+Content-Type: application/json
+
+{ "email": "tomas@example.com" }
+
+### PATCH con email inválido
+# Esperado: 422
+PATCH {{base}}/clientes/{{nuevoCliente.response.body.$.id}}
+Content-Type: application/json
+
+{ "email": "no-es-un-email" }
+
+### PATCH inexistente
+# Esperado: 404
+PATCH {{base}}/clientes/999
+Content-Type: application/json
+
+{ "nombre": "X" }
+
+### Ventas del cliente
+# Esperado: 200 con la venta 1
+GET {{base}}/clientes/1/ventas
+
+### Ventas de un cliente inexistente
+# Esperado: 404
+GET {{base}}/clientes/999/ventas

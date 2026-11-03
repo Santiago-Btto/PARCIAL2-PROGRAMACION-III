@@ -1,0 +1,91 @@
+@base = http://localhost:8000
+
+### Listado paginado
+# Esperado: 200
+GET {{base}}/ventas/?limit=10&offset=0
+
+### Listado con limit = 0 (RN-10)
+# Esperado: 422
+GET {{base}}/ventas/?limit=0
+
+### Detalle con cliente y renglones
+# Esperado: 200
+GET {{base}}/ventas/1
+
+### Detalle inexistente
+# Esperado: 404
+GET {{base}}/ventas/999
+
+### Venta sin renglones (RN-05)
+# Esperado: 422
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{ "cliente_id": 1, "renglones": [] }
+
+### Venta con el mismo libro en dos renglones (RN-05)
+# Esperado: 422
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{
+  "cliente_id": 1,
+  "renglones": [
+    { "libro_id": 2, "cantidad": 1 },
+    { "libro_id": 2, "cantidad": 3 }
+  ]
+}
+
+### Venta con cantidad cero
+# Esperado: 422
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{ "cliente_id": 1, "renglones": [{ "libro_id": 2, "cantidad": 0 }] }
+
+### Venta que intenta mandar el precio y el total (RN-06, RN-07)
+# Esperado: 422: esos datos no forman parte del contrato; los calcula el servidor
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{
+  "cliente_id": 1,
+  "total": "1.00",
+  "renglones": [{ "libro_id": 2, "cantidad": 1, "precio_unitario": "1.00" }]
+}
+
+### Venta sin stock suficiente (la base rechaza stock < 0)
+# Esperado: 409 {"detail": "No hay stock suficiente para alguno de los libros."}
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{ "cliente_id": 1, "renglones": [{ "libro_id": 2, "cantidad": 500 }] }
+
+### No hay PATCH de ventas (RN-08)
+# Esperado: 405 Method Not Allowed
+PATCH {{base}}/ventas/1
+Content-Type: application/json
+
+{ "total": "0" }
+
+### Precio congelado (RN-06): cambiar el precio de Rayuela...
+# Esperado: 200
+PATCH {{base}}/libros/1
+Content-Type: application/json
+
+{ "precio": "99999.00" }
+
+### ...y la venta 2 conserva precio_unitario 25000.00 en el renglón de Rayuela
+# Esperado: 200 con el precio original
+GET {{base}}/ventas/2
+
+### Asincronía: mandar esta venta y enseguida el /health/live de abajo.
+# Esperado: 201. El aviso del comprobante aparece en el log ~0,5 s después.
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{ "cliente_id": 2, "renglones": [{ "libro_id": 3, "cantidad": 1 }] }
+
+### Mientras corre el aviso, el servidor sigue respondiendo
+# Esperado: 200 inmediato
+GET {{base}}/health/live
