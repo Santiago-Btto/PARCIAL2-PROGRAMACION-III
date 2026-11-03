@@ -28,3 +28,15 @@ El baseline con FastAPI 0.162 conserva un fallo previo (31 pasan y falla
 `test_main_montaje_grupos_abierto_y_protegido`, que inspecciona un atributo
 interno del router). FastAPI 0.136.3 es compatible con el test existente; no se
 cambiaron ni el pin de ejecución ni ese test.
+
+## Verificación posterior: arreglo acotado de C-02
+
+La reproducción PostgreSQL de la consulta de roles/usuario confirmó que
+`sqlalchemy.select` producía `Row` con `AsyncSession.exec`. La prueba nueva
+`test_usuarios_select.py` falló primero en sus tres casos (RED), porque el
+resultado construido era `Select` en vez de `SelectOfScalar`. Tras mover ambos
+imports a `sqlmodel.select`, pasó 3/3 (GREEN). También pasaron 95 pruebas
+unitarias de auth y catálogo. Sin PostgreSQL disponible, la suite completa
+reportó 116 pasadas y 22 omitidas; no se considera una repetición del E2E.
+La integración C-03 de 135/135 corresponde a la ejecución previa al arreglo y
+usa overrides explícitos de autenticación.

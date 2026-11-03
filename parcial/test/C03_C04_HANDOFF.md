@@ -36,7 +36,18 @@ Para una venta histórica, cargar `Libro` y movimientos por identificador sin
 filtrar `borrado_en`: la baja lógica oculta el libro del catálogo, pero conserva
 su stock, relaciones e historial para el detalle de la venta.
 
-La reproducción real de C-02 confirmó un defecto anterior de `sqlalchemy.select`
-con `AsyncSession.exec` en las consultas de autenticación/RBAC. El dueño del
-trabajo decidió mantener C-03 acotado; C-04 deberá considerar esa limitación y
-no asumir que este cambio arregla el login o la lectura real de roles.
+La reproducción real de C-02 confirmó que `sqlalchemy.select` con
+`AsyncSession.exec` devolvía filas `Row` en vez de modelos/valores escalares,
+rompiendo la búsqueda del usuario y la lectura de roles. Con autorización
+posterior del dueño, C-02 quedó corregido en el commit
+`e2de62c fix(auth): devuelve valores escalares desde SQLModel`: los dos imports
+usan `sqlmodel.select`, con regresiones unitarias para usuario, roles y lista
+vacía de roles.
+
+Después del arreglo pasaron 95 pruebas unitarias de auth y catálogo; la suite
+completa sin PostgreSQL dio 116 pasadas y 22 omitidas por requerir PostgreSQL
+16. La suite integrada C-03 ya había dado 135/135 antes del arreglo, con auth
+aislada mediante overrides. En la sesión posterior no fue posible reabrir el
+PostgreSQL local porque Windows denegó el bind de loopback; queda pendiente
+repetir el login y la autorización ADMIN end-to-end con PostgreSQL disponible.
+El cambio de C-02 es acotado y no modifica el contrato `cambiar_stock`.
