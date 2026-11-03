@@ -1,0 +1,9 @@
+@base = http://localhost:8000
+
+### Proceso vivo (no toca la base)
+# Esperado: 200 {"estado": "vivo"}
+GET {{base}}/health/live
+
+### Base lista (ejecuta SELECT 1)
+# Esperado: 200 {"estado": "listo", "base": "ok"}   (503 si la base no responde)
+GET {{base}}/health/ready

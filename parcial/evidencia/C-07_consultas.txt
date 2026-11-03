@@ -1,0 +1,43 @@
+=== GET /libros/1: libro 1 «Rayuela» con 1 autor(es)
+--- consulta 1
+SELECT libro.id, libro.isbn, libro.titulo, libro.precio, libro.stock, libro.editorial_id, libro.genero_id, editorial_1.id AS id_1, editorial_1.nombre, editorial_1.pais, genero_1.id AS id_2, genero_1.nombre AS nombre_1 
+FROM libro LEFT OUTER JOIN editorial AS editorial_1 ON editorial_1.id = libro.editorial_id LEFT OUTER JOIN genero AS genero_1 ON genero_1.id = libro.genero_id 
+WHERE libro.id = $1::INTEGER
+--- consulta 2
+SELECT libro_autor.libro_id, libro_autor.autor_id, libro_autor.rol, libro_autor.orden, autor_1.id, autor_1.nombre, autor_1.nacionalidad 
+FROM libro_autor LEFT OUTER JOIN autor AS autor_1 ON autor_1.id = libro_autor.autor_id 
+WHERE libro_autor.libro_id IN ($1::INTEGER) ORDER BY libro_autor.orden
+>>> TOTAL: 2 consultas
+
+=== GET /libros/5: libro 5 «Antología de la literatura fantástica» con 3 autor(es)
+--- consulta 1
+SELECT libro.id, libro.isbn, libro.titulo, libro.precio, libro.stock, libro.editorial_id, libro.genero_id, editorial_1.id AS id_1, editorial_1.nombre, editorial_1.pais, genero_1.id AS id_2, genero_1.nombre AS nombre_1 
+FROM libro LEFT OUTER JOIN editorial AS editorial_1 ON editorial_1.id = libro.editorial_id LEFT OUTER JOIN genero AS genero_1 ON genero_1.id = libro.genero_id 
+WHERE libro.id = $1::INTEGER
+--- consulta 2
+SELECT libro_autor.libro_id, libro_autor.autor_id, libro_autor.rol, libro_autor.orden, autor_1.id, autor_1.nombre, autor_1.nacionalidad 
+FROM libro_autor LEFT OUTER JOIN autor AS autor_1 ON autor_1.id = libro_autor.autor_id 
+WHERE libro_autor.libro_id IN ($1::INTEGER) ORDER BY libro_autor.orden
+>>> TOTAL: 2 consultas
+
+=== GET /ventas/1: venta 1 con 1 renglón(es)
+--- consulta 1
+SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email 
+FROM venta LEFT OUTER JOIN cliente AS cliente_1 ON cliente_1.id = venta.cliente_id 
+WHERE venta.id = $1::INTEGER
+--- consulta 2
+SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.editorial_id, libro_1.genero_id 
+FROM renglon_venta LEFT OUTER JOIN libro AS libro_1 ON libro_1.id = renglon_venta.libro_id 
+WHERE renglon_venta.venta_id IN ($1::INTEGER) ORDER BY renglon_venta.id
+>>> TOTAL: 2 consultas
+
+=== GET /ventas/2: venta 2 con 2 renglón(es)
+--- consulta 1
+SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email 
+FROM venta LEFT OUTER JOIN cliente AS cliente_1 ON cliente_1.id = venta.cliente_id 
+WHERE venta.id = $1::INTEGER
+--- consulta 2
+SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.editorial_id, libro_1.genero_id 
+FROM renglon_venta LEFT OUTER JOIN libro AS libro_1 ON libro_1.id = renglon_venta.libro_id 
+WHERE renglon_venta.venta_id IN ($1::INTEGER) ORDER BY renglon_venta.id
+>>> TOTAL: 2 consultas

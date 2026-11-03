@@ -1,0 +1,329 @@
+# Editoriales, géneros, autores y libros. Ejecutar después de seed y de casos_minimos.http.
+# Las peticiones con "# @name" guardan su respuesta y las siguientes usan el id creado
+# (sintaxis de la extensión REST Client de VS Code), porque un INSERT rechazado por la
+# base también consume un valor de la secuencia y el id exacto puede variar.
+
+@base = http://localhost:8000
+
+############################ EDITORIALES ############################
+
+### Alta
+# Esperado: 201 con el id asignado por la base
+# @name nuevaEditorial
+POST {{base}}/editoriales/
+Content-Type: application/json
+
+{ "nombre": "Seix Barral", "pais": "España" }
+
+### Alta con nombre repetido
+# Esperado: 409 {"detail": "Ya existe una editorial con ese nombre."}
+POST {{base}}/editoriales/
+Content-Type: application/json
+
+{ "nombre": "Anagrama", "pais": "España" }
+
+### Alta sin un campo obligatorio
+# Esperado: 422
+POST {{base}}/editoriales/
+Content-Type: application/json
+
+{ "nombre": "Sin país" }
+
+### Alta que intenta mandar el id
+# Esperado: 201; el DTO de alta no tiene id, el valor enviado se ignora y la base asigna el suyo
+POST {{base}}/editoriales/
+Content-Type: application/json
+
+{ "id": 100, "nombre": "Losada", "pais": "Argentina" }
+
+### Listado paginado
+# Esperado: 200 con 2 editoriales (ids 2 y 3)
+GET {{base}}/editoriales/?limit=2&offset=1
+
+### Listado con limit fuera de rango (RN-10)
+# Esperado: 422
+GET {{base}}/editoriales/?limit=101
+
+### Listado con offset negativo (RN-10)
+# Esperado: 422
+GET {{base}}/editoriales/?offset=-1
+
+### Detalle
+# Esperado: 200
+GET {{base}}/editoriales/1
+
+### Detalle inexistente
+# Esperado: 404 {"detail": "La editorial no existe."}
+GET {{base}}/editoriales/999
+
+### PATCH parcial: solo cambia el país (exclude_unset)
+# Esperado: 200; el nombre no cambia
+PATCH {{base}}/editoriales/{{nuevaEditorial.response.body.$.id}}
+Content-Type: application/json
+
+{ "pais": "México" }
+
+### PATCH a un nombre que ya existe
+# Esperado: 409
+PATCH {{base}}/editoriales/{{nuevaEditorial.response.body.$.id}}
+Content-Type: application/json
+
+{ "nombre": "Sudamericana" }
+
+### PATCH con null en un campo obligatorio
+# Esperado: 422
+PATCH {{base}}/editoriales/{{nuevaEditorial.response.body.$.id}}
+Content-Type: application/json
+
+{ "nombre": null }
+
+### PATCH inexistente
+# Esperado: 404
+PATCH {{base}}/editoriales/999
+Content-Type: application/json
+
+{ "pais": "Chile" }
+
+### Libros de la editorial (con editorial y género)
+# Esperado: 200 con Rayuela y Bestiario
+GET {{base}}/editoriales/1/libros
+
+### Libros de una editorial inexistente
+# Esperado: 404
+GET {{base}}/editoriales/999/libros
+
+############################ GÉNEROS ############################
+
+### Alta
+# Esperado: 201
+POST {{base}}/generos/
+Content-Type: application/json
+
+{ "nombre": "Poesía" }
+
+### Alta repetida
+# Esperado: 409 {"detail": "Ya existe un género con ese nombre."}
+POST {{base}}/generos/
+Content-Type: application/json
+
+{ "nombre": "Novela" }
+
+### Listado
+# Esperado: 200
+GET {{base}}/generos/
+
+### Libros del género Cuento
+# Esperado: 200 con Bestiario y Ficciones
+GET {{base}}/generos/2/libros
+
+### Libros de un género inexistente
+# Esperado: 404
+GET {{base}}/generos/999/libros
+
+############################ AUTORES ############################
+
+### Alta
+# Esperado: 201
+# @name nuevoAutor
+POST {{base}}/autores/
+Content-Type: application/json
+
+{ "nombre": "Alejandra Pizarnik", "nacionalidad": "argentina" }
+
+### Alta inválida
+# Esperado: 422
+POST {{base}}/autores/
+Content-Type: application/json
+
+{ "nombre": "" , "nacionalidad": "argentina" }
+
+### Detalle
+# Esperado: 200
+GET {{base}}/autores/5
+
+### PATCH parcial
+# Esperado: 200
+PATCH {{base}}/autores/{{nuevoAutor.response.body.$.id}}
+Content-Type: application/json
+
+{ "nacionalidad": "argentina (Avellaneda)" }
+
+### Detalle inexistente
+# Esperado: 404
+GET {{base}}/autores/999
+
+### Libros del autor con rol y orden (Borges: autor de Ficciones y de la Antología)
+# Esperado: 200 con 2 libros
+GET {{base}}/autores/5/libros
+
+### Libros del autor (Silvina Ocampo: coautora, orden 2)
+# Esperado: 200
+GET {{base}}/autores/4/libros
+
+### Libros de un autor inexistente
+# Esperado: 404
+GET {{base}}/autores/999/libros
+
+############################ LIBROS ############################
+
+### Alta con autores (ejemplo de la consigna)
+# Esperado: 201 con el detalle: editorial, género y los dos coautores en orden
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0006-6",
+  "titulo": "Los que aman, odian",
+  "precio": "21000.00",
+  "stock": 4,
+  "editorial_id": 1,
+  "genero_id": 1,
+  "autores": [
+    { "autor_id": 3, "rol": "coautor", "orden": 1 },
+    { "autor_id": 4, "rol": "coautor", "orden": 2 }
+  ]
+}
+
+### Alta con precio cero (RN-03)
+# Esperado: 422
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0200-8",
+  "titulo": "Gratis",
+  "precio": "0",
+  "stock": 1,
+  "editorial_id": 1,
+  "autores": [{ "autor_id": 1, "rol": "autor", "orden": 1 }]
+}
+
+### Alta con stock negativo (RN-03)
+# Esperado: 422
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0201-5",
+  "titulo": "Stock negativo",
+  "precio": "1000.00",
+  "stock": -1,
+  "editorial_id": 1,
+  "autores": [{ "autor_id": 1, "rol": "autor", "orden": 1 }]
+}
+
+### Alta con rol inválido
+# Esperado: 422
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0202-2",
+  "titulo": "Rol raro",
+  "precio": "1000.00",
+  "editorial_id": 1,
+  "autores": [{ "autor_id": 1, "rol": "prologuista", "orden": 1 }]
+}
+
+### Alta con el mismo autor dos veces
+# Esperado: 422
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0203-9",
+  "titulo": "Autor duplicado",
+  "precio": "1000.00",
+  "editorial_id": 1,
+  "autores": [
+    { "autor_id": 1, "rol": "autor", "orden": 1 },
+    { "autor_id": 1, "rol": "traductor", "orden": 2 }
+  ]
+}
+
+### Alta con un género inexistente
+# Esperado: 409 {"detail": "El género indicado no existe."}
+POST {{base}}/libros/
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0204-6",
+  "titulo": "Género fantasma",
+  "precio": "1000.00",
+  "editorial_id": 1,
+  "genero_id": 999,
+  "autores": [{ "autor_id": 1, "rol": "autor", "orden": 1 }]
+}
+
+### Listado (libros con editorial y género)
+# Esperado: 200
+GET {{base}}/libros/
+
+### Listado filtrado por género y paginado
+# Esperado: 200
+GET {{base}}/libros/?genero_id=1&limit=2&offset=0
+
+### Búsqueda por parte del título, sin distinguir mayúsculas (RN-11)
+# Esperado: 200 con "Respiración artificial"
+GET {{base}}/libros/?titulo=artif
+
+### Búsqueda con comodín de LIKE: el % se busca literalmente
+# Esperado: 200 con []
+GET {{base}}/libros/?titulo=%25
+
+### Detalle
+# Esperado: 200 con editorial, género (null) y tres autores en orden
+GET {{base}}/libros/5
+
+### Detalle inexistente
+# Esperado: 404
+GET {{base}}/libros/999
+
+### PATCH parcial: precio y stock
+# Esperado: 200 con el detalle actualizado. Las ventas ya registradas conservan su precio (RN-06).
+PATCH {{base}}/libros/1
+Content-Type: application/json
+
+{ "precio": "26500.00", "stock": 20 }
+
+### PATCH: asignar género al libro que no tenía
+# Esperado: 200
+PATCH {{base}}/libros/5
+Content-Type: application/json
+
+{ "genero_id": 2 }
+
+### PATCH: quitar el género (null permitido solo en genero_id)
+# Esperado: 200 con "genero": null
+PATCH {{base}}/libros/5
+Content-Type: application/json
+
+{ "genero_id": null }
+
+### PATCH con ISBN de otro libro
+# Esperado: 409
+PATCH {{base}}/libros/2
+Content-Type: application/json
+
+{ "isbn": "978-950-07-0386-1" }
+
+### PATCH con una editorial inexistente
+# Esperado: 409 {"detail": "La editorial indicada no existe."}
+PATCH {{base}}/libros/2
+Content-Type: application/json
+
+{ "editorial_id": 999 }
+
+### PATCH con precio negativo
+# Esperado: 422
+PATCH {{base}}/libros/2
+Content-Type: application/json
+
+{ "precio": "-5" }
+
+### PATCH inexistente
+# Esperado: 404
+PATCH {{base}}/libros/999
+Content-Type: application/json
+
+{ "stock": 1 }
