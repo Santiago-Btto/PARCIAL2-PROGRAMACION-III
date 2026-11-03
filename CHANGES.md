@@ -69,7 +69,7 @@ Paso │ Agente A (Backend Core)               │ Agente B (Backend Aux)       
 ## FASE 0 — Cimientos, Modelos Core y Migraciones (Push 1)
 
 ### [C-01] `core-models-and-migrations`
-- **Estado**: `[ ]` pendiente *(ya implementado en código en Push 1 — listo para verificar y sincronizar en OpenSpec)*
+- **Estado**: `[x]` completado y archivado (`openspec/changes/archive/2026-11-03-c-01-core-models-and-migrations/`)
 - **Scope**: Separación de carpetas `parcial/` y `despliegue/`, infraestructura transversal en `parcial/app/core/`, modelos de datos completos y migraciones 3 y 4 de Alembic (Ejercicios 1, 2, base del 6 y 7)
   - Estructura obligatoria de directorios: `parcial/` (Ejercicios 1 a 8) y `despliegue/` (copia congelada del TP Capítulos 1 a 4 para Ejercicios 9 y 10)
   - `parcial/app/core/config.py`: `Settings(BaseSettings)` sin secretos ni valores por defecto en `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` ni `JWT_SECRET_KEY`; construcción de `database_url` (`postgresql+asyncpg://...`) mediante `@computed_field`
