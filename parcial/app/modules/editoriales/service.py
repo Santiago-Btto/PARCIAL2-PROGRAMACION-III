@@ -1,55 +1,63 @@
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.errores import Conflicto, MapaRestricciones, NoEncontrado, traducir_integrity_error
+from app.core.paginacion import Pagina, armar_pagina, calcular_paginas
 from app.modules.editoriales.models import Editorial
 from app.modules.editoriales.schemas import EditorialCreate, EditorialUpdate
+from app.modules.editoriales.unit_of_work import EditorialesUnitOfWork
 from app.modules.libros.models import Libro
-from app.modules.libros.service import consulta_listado
+
 
 ERRORES: MapaRestricciones = {
     "uq_editorial_nombre": (Conflicto, "Ya existe una editorial con ese nombre."),
 }
 
 
-async def crear(session: AsyncSession, datos: EditorialCreate) -> Editorial:
-    editorial = Editorial.model_validate(datos)
-    session.add(editorial)
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise traducir_integrity_error(exc, ERRORES) from None
-    return editorial
-
-
-async def listar(session: AsyncSession, limit: int, offset: int) -> list[Editorial]:
-    consulta = select(Editorial).order_by(col(Editorial.id)).limit(limit).offset(offset)
-    return list((await session.exec(consulta)).all())
-
-
-async def obtener(session: AsyncSession, editorial_id: int) -> Editorial:
-    editorial = await session.get(Editorial, editorial_id)
-    if editorial is None:
+async def _obtener(uow: EditorialesUnitOfWork, editorial_id: int) -> Editorial:
+    entidad = await uow.editoriales.get_by_id(editorial_id)
+    if entidad is None:
         raise NoEncontrado("La editorial no existe.")
-    return editorial
+    return entidad
 
 
-async def actualizar(session: AsyncSession, editorial_id: int, datos: EditorialUpdate) -> Editorial:
-    editorial = await obtener(session, editorial_id)
-    editorial.sqlmodel_update(datos.model_dump(exclude_unset=True))
+async def crear(uow: EditorialesUnitOfWork, datos: EditorialCreate) -> Editorial:
     try:
-        await session.commit()
+        async with uow:
+            entidad = await uow.editoriales.add(Editorial.model_validate(datos))
+        return entidad
     except IntegrityError as exc:
-        await session.rollback()
+        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
-    return editorial
+
+
+async def listar(uow: EditorialesUnitOfWork, page: int, size: int) -> Pagina[Editorial]:
+    async with uow:
+        total = await uow.editoriales.count()
+        _, offset = calcular_paginas(total, page, size)
+        items = await uow.editoriales.get_all(offset=offset, limit=size)
+        return armar_pagina(items, total, page, size)
+
+
+async def obtener(uow: EditorialesUnitOfWork, editorial_id: int) -> Editorial:
+    async with uow:
+        return await _obtener(uow, editorial_id)
+
+
+async def actualizar(
+    uow: EditorialesUnitOfWork, editorial_id: int, datos: EditorialUpdate
+) -> Editorial:
+    try:
+        async with uow:
+            entidad = await _obtener(uow, editorial_id)
+            return await uow.editoriales.update(entidad, datos.model_dump(exclude_unset=True))
+    except IntegrityError as exc:
+        await uow.rollback()
+        raise traducir_integrity_error(exc, ERRORES) from None
 
 
 async def listar_libros(
-    session: AsyncSession, editorial_id: int, limit: int, offset: int
-) -> list[Libro]:
-    await obtener(session, editorial_id)  # 404 si la editorial no existe
-    consulta = consulta_listado().where(Libro.editorial_id == editorial_id).limit(limit).offset(offset)
-    return list((await session.exec(consulta)).all())
+    uow: EditorialesUnitOfWork, editorial_id: int, page: int, size: int
+) -> Pagina[Libro]:
+    async with uow:
+        await _obtener(uow, editorial_id)
+        return await uow.libros.listar_pagina(page=page, size=size, editorial_id=editorial_id)

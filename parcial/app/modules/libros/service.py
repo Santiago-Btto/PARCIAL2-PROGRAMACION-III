@@ -1,19 +1,22 @@
+"""Reglas del catálogo de libros y operaciones transaccionales de stock."""
+
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload, selectinload
-from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel.sql.expression import SelectOfScalar
 
 from app.core.errores import Conflicto, MapaRestricciones, NoEncontrado, traducir_integrity_error
+from app.core.paginacion import Pagina
 from app.modules.libros.models import Libro, LibroAutor
-from app.modules.libros.schemas import LibroCreate, LibroUpdate
+from app.modules.libros.repository import LibroRepository
+from app.modules.libros.schemas import LibroCreate, LibroUpdate, ReposicionCreate
+from app.modules.libros.stock import cambiar_stock
+from app.modules.libros.unit_of_work import LibrosUnitOfWork
 
-# Cada restricción de la base se traduce a un mensaje propio (RN-12).
 ERRORES: MapaRestricciones = {
     "uq_libro_isbn": (Conflicto, "Ya existe un libro con ese ISBN."),
+    "uq_libro_isbn_vigente": (Conflicto, "Ya existe un libro vigente con ese ISBN."),
     "fk_libro_editorial_id_editorial": (Conflicto, "La editorial indicada no existe."),
     "fk_libro_genero_id_genero": (Conflicto, "El género indicado no existe."),
     "fk_libro_autor_autor_id_autor": (Conflicto, "Alguno de los autores indicados no existe."),
+    "fk_movimiento_stock_usuario_id_usuario": (Conflicto, "El usuario que registra el movimiento no existe."),
     "pk_libro_autor": (Conflicto, "Un mismo autor no puede figurar dos veces en el libro."),
     "ck_libro_precio_positivo": (Conflicto, "El precio debe ser mayor que cero."),
     "ck_libro_stock_no_negativo": (Conflicto, "El stock no puede ser negativo."),
@@ -22,97 +25,84 @@ ERRORES: MapaRestricciones = {
 }
 
 
-def consulta_listado() -> SelectOfScalar[Libro]:
-    """Libros con editorial y género: relaciones a uno -> joinedload (una sola consulta)."""
-    return (
-        select(Libro)
-        .options(
-            joinedload(Libro.editorial),  # type: ignore[arg-type]
-            joinedload(Libro.genero),  # type: ignore[arg-type]
-        )
-        .order_by(col(Libro.id))
-    )
-
-
-def _escapar_like(texto: str) -> str:
-    # % y _ del usuario se buscan literalmente, no como comodines.
-    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 async def listar(
-    session: AsyncSession,
-    limit: int,
-    offset: int,
-    titulo: str | None = None,
-    genero_id: int | None = None,
-) -> list[Libro]:
-    consulta = consulta_listado()
-    if titulo:
-        # RN-11: ILIKE con parámetro ligado. El texto del usuario viaja como valor,
-        # nunca se concatena al SQL; "' OR '1'='1" se busca como texto literal.
-        consulta = consulta.where(col(Libro.titulo).ilike(f"%{_escapar_like(titulo)}%", escape="\\"))
-    if genero_id is not None:
-        consulta = consulta.where(Libro.genero_id == genero_id)
-    consulta = consulta.limit(limit).offset(offset)
-    return list((await session.exec(consulta)).all())
+    uow: LibrosUnitOfWork, *, page: int, size: int,
+    titulo: str | None = None, genero_id: int | None = None,
+) -> Pagina:
+    return await uow.libros.listar_pagina(page=page, size=size, titulo=titulo, genero_id=genero_id)
 
 
-async def obtener_detalle(session: AsyncSession, libro_id: int) -> Libro:
-    """Libro con editorial, género y autores en un número FIJO de consultas (2):
-
-    1. libro JOIN editorial LEFT JOIN genero            (joinedload, relaciones a uno)
-    2. libro_autor JOIN autor WHERE libro_id IN (...)    (selectinload de la colección
-                                                          + joinedload del autor)
-    No crece con la cantidad de autores (caso C-07).
-    """
-    consulta = (
-        select(Libro)
-        .where(Libro.id == libro_id)
-        .options(
-            joinedload(Libro.editorial),  # type: ignore[arg-type]
-            joinedload(Libro.genero),  # type: ignore[arg-type]
-            selectinload(Libro.autorias).joinedload(LibroAutor.autor),  # type: ignore[arg-type]
-        )
-        # Refresca también los objetos que ya estaban en la sesión (p. ej. recién creados).
-        .execution_options(populate_existing=True)
-    )
-    libro = (await session.exec(consulta)).first()
+async def obtener_detalle(uow: LibrosUnitOfWork, libro_id: int):
+    libro = await uow.libros.obtener_detalle(libro_id)
     if libro is None:
         raise NoEncontrado("El libro no existe.")
     return libro
 
 
-async def crear(session: AsyncSession, datos: LibroCreate) -> Libro:
-    """Alta con relaciones.
-
-    - editorial_id y genero_id: agregación, viaja el id de algo que ya existe.
-    - autores: muchos a muchos con datos; cada autoría trae autor_id + rol + orden.
-
-    Ningún if consulta antes si los ids existen: se escribe y, si la base rechaza
-    una clave foránea, el IntegrityError se traduce a 409.
-    """
-    libro = Libro.model_validate(datos.model_dump(exclude={"autores"}))
-    for autoria in datos.autores:
-        libro.autorias.append(
-            LibroAutor(autor_id=autoria.autor_id, rol=autoria.rol, orden=autoria.orden)
-        )
-    session.add(libro)
+async def crear(uow: LibrosUnitOfWork, datos: LibroCreate, *, usuario_id: int):
+    libro_id: int
     try:
-        await session.commit()
+        async with uow:
+            libro = Libro(
+                **datos.model_dump(exclude={"autores", "stock_inicial"}),
+                stock=0,
+                autorias=[
+                    LibroAutor(autor_id=autoria.autor_id, rol=autoria.rol, orden=autoria.orden)
+                    for autoria in datos.autores
+                ],
+            )
+            libro = await uow.libros.add(libro)
+            libro_id = libro.id
+            if datos.stock_inicial:
+                await cambiar_stock(
+                    uow,
+                    libro_id=libro_id,
+                    cantidad=datos.stock_inicial,
+                    usuario_id=usuario_id,
+                    motivo="Stock inicial",
+                )
     except IntegrityError as exc:
-        await session.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
-    return await obtener_detalle(session, libro.id)  # type: ignore[arg-type]
+    return await obtener_detalle(uow, libro_id)
 
 
-async def actualizar(session: AsyncSession, libro_id: int, datos: LibroUpdate) -> Libro:
-    libro = await session.get(Libro, libro_id)
-    if libro is None:
+async def actualizar(uow: LibrosUnitOfWork, libro_id: int, datos: LibroUpdate):
+    try:
+        async with uow:
+            libro = await uow.libros.get_for_update(libro_id)
+            if libro is None or libro.borrado_en is not None:
+                raise NoEncontrado("El libro no existe.")
+            await uow.libros.update(libro, datos.model_dump(exclude_unset=True))
+    except IntegrityError as exc:
+        raise traducir_integrity_error(exc, ERRORES) from None
+    return await obtener_detalle(uow, libro_id)
+
+
+async def reponer(
+    uow: LibrosUnitOfWork, libro_id: int, datos: ReposicionCreate, *, usuario_id: int
+):
+    try:
+        async with uow:
+            await cambiar_stock(
+                uow, libro_id=libro_id, cantidad=datos.cantidad,
+                usuario_id=usuario_id, motivo=datos.motivo,
+            )
+    except IntegrityError as exc:
+        raise traducir_integrity_error(exc, ERRORES) from None
+    return await obtener_detalle(uow, libro_id)
+
+
+async def eliminar(uow: LibrosUnitOfWork, libro_id: int) -> None:
+    async with uow:
+        libro = await uow.libros.get_for_update(libro_id)
+        if libro is None or libro.borrado_en is not None:
+            raise NoEncontrado("El libro no existe.")
+        await uow.libros.soft_delete(libro)
+
+
+async def listar_movimientos(
+    uow: LibrosUnitOfWork, libro_id: int, *, page: int, size: int
+) -> Pagina:
+    if await uow.libros.get_by_id_including_deleted(libro_id) is None:
         raise NoEncontrado("El libro no existe.")
-    libro.sqlmodel_update(datos.model_dump(exclude_unset=True))  # PATCH parcial
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise traducir_integrity_error(exc, ERRORES) from None
-    return await obtener_detalle(session, libro_id)
+    return await uow.movimientos.listar_pagina_por_libro(libro_id, page=page, size=size)

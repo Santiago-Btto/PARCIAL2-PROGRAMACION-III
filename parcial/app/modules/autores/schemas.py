@@ -1,15 +1,19 @@
 from decimal import Decimal
 
-from pydantic import field_validator
+from pydantic import ConfigDict, field_validator
 from sqlmodel import Field, SQLModel
 
 
 class AutorCreate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1, max_length=120)
     nacionalidad: str = Field(min_length=1, max_length=60)
 
 
 class AutorUpdate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1, max_length=120)
     nacionalidad: str | None = Field(default=None, min_length=1, max_length=60)
 

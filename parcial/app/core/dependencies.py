@@ -17,7 +17,8 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
-from sqlalchemy import or_, select
+from sqlalchemy import or_
+from sqlmodel import select
 
 from app.core.database import SessionDep
 from app.core.errores import NoAutenticado, Prohibido
