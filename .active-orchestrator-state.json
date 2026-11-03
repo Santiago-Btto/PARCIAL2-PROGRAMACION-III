@@ -1,0 +1,153 @@
+{
+  "version": 4,
+  "step": "done",
+  "owner": "active-orchestrator",
+  "discovery": {
+    "skipped": true
+  },
+  "kb": {
+    "created_by": "kb-creator",
+    "source": "ingest",
+    "discovery": {
+      "problem": "Evolucionar la API asincrónica de la Librería (capítulos 1 a 4) hasta el capítulo 6 agregando autenticación con bcrypt y JWT en cookie HttpOnly, autorización en base de datos por petición con roles vigentes, arquitectura en capas con Repository y Unit of Work, borrado lógico de libros, movimientos de stock append-only con trigger en PostgreSQL, y el despliegue en contenedor Docker Alpine del TP en el VPS.",
+      "system_type": "api",
+      "domain": "ecommerce_bookstore",
+      "scale": "public_multi_user",
+      "stack": [
+        "Python 3.12",
+        "FastAPI 0.111",
+        "SQLModel 0.0.24",
+        "SQLAlchemy 2.0 (async)",
+        "asyncpg 0.30",
+        "PostgreSQL 16",
+        "Alembic 1.13",
+        "pydantic-settings 2.0",
+        "bcrypt 4.0",
+        "PyJWT 2.8",
+        "Docker (python:3.12-alpine)"
+      ],
+      "needs_infra": true
+    },
+    "files": [
+      "knowledge-base/01_vision_y_objetivos.md",
+      "knowledge-base/02_descripcion_general.md",
+      "knowledge-base/03_actores_y_roles.md",
+      "knowledge-base/04_modelo_de_datos.md",
+      "knowledge-base/05_reglas_de_negocio.md",
+      "knowledge-base/06_funcionalidades.md",
+      "knowledge-base/07_flujos_principales.md",
+      "knowledge-base/08_arquitectura_propuesta.md",
+      "knowledge-base/09_decisiones_y_supuestos.md",
+      "knowledge-base/10_preguntas_abiertas.md",
+      "knowledge-base/README.md"
+    ]
+  },
+  "roadmap": {
+    "created_by": "roadmap-generator",
+    "source": "CHANGES.md",
+    "changes": [
+      "C-01",
+      "C-02",
+      "C-03",
+      "C-04",
+      "C-05"
+    ]
+  },
+  "skills": {
+    "created_by": "find-skill",
+    "recommended": [
+      {
+        "name": "fastapi",
+        "repo": "fastapi/fastapi",
+        "package": "fastapi/fastapi@fastapi",
+        "installs": "14.3K",
+        "install_command": "npx skills add fastapi/fastapi --skill fastapi -g",
+        "reason": "Official FastAPI skill covering async routing, dependency injection, cookies, and Pydantic v2 validation."
+      },
+      {
+        "name": "fastapi-templates",
+        "repo": "wshobson/agents",
+        "package": "wshobson/agents@fastapi-templates",
+        "installs": "26.3K",
+        "install_command": "npx skills add wshobson/agents --skill fastapi-templates -g",
+        "reason": "Production-ready FastAPI templates for layered architecture (Repository, Service, Unit of Work) and async DB setup."
+      },
+      {
+        "name": "sqlalchemy-alembic-expert-best-practices-code-review",
+        "repo": "wispbit-ai/skills",
+        "package": "wispbit-ai/skills@sqlalchemy-alembic-expert-best-practices-code-review",
+        "installs": "2K",
+        "install_command": "npx skills add wispbit-ai/skills --skill sqlalchemy-alembic-expert-best-practices-code-review -g",
+        "reason": "SQLAlchemy 2.0 async ORM patterns, AsyncSession lifecycle, and Alembic migration best practices."
+      },
+      {
+        "name": "postgresql-table-design",
+        "repo": "wshobson/agents",
+        "package": "wshobson/agents@postgresql-table-design",
+        "installs": "28.4K",
+        "install_command": "npx skills add wshobson/agents --skill postgresql-table-design -g",
+        "reason": "PostgreSQL 16 schema design, foreign keys, CHECK constraints, indexing, and append-only/trigger table patterns."
+      },
+      {
+        "name": "postgresql-optimization",
+        "repo": "github/awesome-copilot",
+        "package": "github/awesome-copilot@postgresql-optimization",
+        "installs": "16.6K",
+        "install_command": "npx skills add github/awesome-copilot --skill postgresql-optimization -g",
+        "reason": "PostgreSQL query optimization, indexing strategies, and transactional locking/concurrency best practices."
+      },
+      {
+        "name": "multi-stage-dockerfile",
+        "repo": "github/awesome-copilot",
+        "package": "github/awesome-copilot@multi-stage-dockerfile",
+        "installs": "31.1K",
+        "install_command": "npx skills add github/awesome-copilot --skill multi-stage-dockerfile -g",
+        "reason": "Multi-stage and lightweight python:3.12-alpine Dockerfile optimization, non-root execution, and layer caching."
+      },
+      {
+        "name": "docker-compose-patterns",
+        "repo": "docker/skills",
+        "package": "docker/skills@docker-compose-patterns",
+        "installs": "1.7K",
+        "install_command": "npx skills add docker/skills --skill docker-compose-patterns -g",
+        "reason": "Official Docker Compose orchestration, service healthchecks, networking, and volume persistence for API + PostgreSQL."
+      },
+      {
+        "name": "python-testing-patterns",
+        "repo": "wshobson/agents",
+        "package": "wshobson/agents@python-testing-patterns",
+        "installs": "39.2K",
+        "install_command": "npx skills add wshobson/agents --skill python-testing-patterns -g",
+        "reason": "Pytest async testing patterns, fixtures, and TDD practices for Python 3.12 backend APIs."
+      }
+    ],
+    "installed": [
+      "fastapi",
+      "fastapi-templates",
+      "sqlalchemy-alembic-expert-best-practices-code-review",
+      "postgresql-table-design",
+      "multi-stage-dockerfile"
+    ]
+  },
+  "registry": {
+    "created_by": "skill-registry",
+    "file": ".atl/skill-registry.md"
+  },
+  "agents": {
+    "created_by": "agent-instruction",
+    "files": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "reglas_applied": [
+      "Capas y Transacciones: Router -> Service -> UoW -> Repository -> Model (sin commit en Repository, sin cerrar sesión en UoW; excepción única IntentoAcceso)",
+      "Esquema y Base de Datos: sólo Alembic (4 migraciones), índices únicos parciales, CHECK, Decimal, TIMESTAMPTZ y trigger append-only en movimiento_stock",
+      "Asincronía y Bcrypt: async def, lazy='raise' + precarga en repositorio, bcrypt con to_thread + Semaphore fuera de la transacción y límite de 72 bytes",
+      "Contratos, Errores y Paginación: extra='forbid', exclude_unset en PATCH, sin password_hash ni texto interno de DB, y Pagina[T] {items, total, page, size, pages}",
+      "Auth, Cookies y RBAC: JWT sólo en cookie HttpOnly access_token, requiere_rol consultando asignacion_rol vigente en cada petición (401 vs 403) y grupo protegido con debe_cambiar_password",
+      "Stock y Borrado Lógico: punto único de escritura de stock con MovimientoStock (alta, reposición y venta) y borrado lógico borrado_en en Libro",
+      "Despliegue Docker: python:3.12-alpine non-root sin secretos, alembic upgrade head al arrancar y HEALTHCHECK con wget a 127.0.0.1:8000/health/ready",
+      "Git y Entrega: sin secretos por defecto ni .env/.venv/__pycache__, commits como Santiago-Btto sin co-autoría IA"
+    ]
+  }
+}
