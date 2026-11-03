@@ -1,62 +1,72 @@
-from sqlalchemy.orm import joinedload
-from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
-from app.core.errores import NoEncontrado
+from app.core.errores import MapaRestricciones, NoEncontrado, traducir_integrity_error
+from app.core.paginacion import Pagina, armar_pagina, calcular_paginas
 from app.modules.autores.models import Autor
 from app.modules.autores.schemas import AutorCreate, AutorUpdate, LibroDeAutor
-from app.modules.libros.models import LibroAutor
+from app.modules.autores.unit_of_work import AutoresUnitOfWork
 
 
-async def crear(session: AsyncSession, datos: AutorCreate) -> Autor:
-    autor = Autor.model_validate(datos)
-    session.add(autor)
-    await session.commit()
-    return autor
+ERRORES: MapaRestricciones = {}
 
 
-async def listar(session: AsyncSession, limit: int, offset: int) -> list[Autor]:
-    consulta = select(Autor).order_by(col(Autor.id)).limit(limit).offset(offset)
-    return list((await session.exec(consulta)).all())
-
-
-async def obtener(session: AsyncSession, autor_id: int) -> Autor:
-    autor = await session.get(Autor, autor_id)
-    if autor is None:
+async def _obtener(uow: AutoresUnitOfWork, autor_id: int) -> Autor:
+    entidad = await uow.autores.get_by_id(autor_id)
+    if entidad is None:
         raise NoEncontrado("El autor no existe.")
-    return autor
+    return entidad
 
 
-async def actualizar(session: AsyncSession, autor_id: int, datos: AutorUpdate) -> Autor:
-    autor = await obtener(session, autor_id)
-    autor.sqlmodel_update(datos.model_dump(exclude_unset=True))
-    await session.commit()
-    return autor
+async def crear(uow: AutoresUnitOfWork, datos: AutorCreate) -> Autor:
+    try:
+        async with uow:
+            entidad = await uow.autores.add(Autor.model_validate(datos))
+        return entidad
+    except IntegrityError as exc:
+        await uow.rollback()
+        raise traducir_integrity_error(exc, ERRORES) from None
+
+
+async def listar(uow: AutoresUnitOfWork, page: int, size: int) -> Pagina[Autor]:
+    async with uow:
+        total = await uow.autores.count()
+        _, offset = calcular_paginas(total, page, size)
+        items = await uow.autores.get_all(offset=offset, limit=size)
+        return armar_pagina(items, total, page, size)
+
+
+async def obtener(uow: AutoresUnitOfWork, autor_id: int) -> Autor:
+    async with uow:
+        return await _obtener(uow, autor_id)
+
+
+async def actualizar(
+    uow: AutoresUnitOfWork, autor_id: int, datos: AutorUpdate
+) -> Autor:
+    try:
+        async with uow:
+            entidad = await _obtener(uow, autor_id)
+            return await uow.autores.update(entidad, datos.model_dump(exclude_unset=True))
+    except IntegrityError as exc:
+        await uow.rollback()
+        raise traducir_integrity_error(exc, ERRORES) from None
 
 
 async def listar_libros(
-    session: AsyncSession, autor_id: int, limit: int, offset: int
-) -> list[LibroDeAutor]:
-    await obtener(session, autor_id)
-    # Una sola consulta: autorías del autor + su libro (relación a uno -> joinedload).
-    consulta = (
-        select(LibroAutor)
-        .where(LibroAutor.autor_id == autor_id)
-        .options(joinedload(LibroAutor.libro))  # type: ignore[arg-type]
-        .order_by(col(LibroAutor.libro_id))
-        .limit(limit)
-        .offset(offset)
-    )
-    autorias = (await session.exec(consulta)).all()
-    return [
-        LibroDeAutor(
-            libro_id=a.libro_id,
-            isbn=a.libro.isbn,
-            titulo=a.libro.titulo,
-            precio=a.libro.precio,
-            rol=a.rol,
-            orden=a.orden,
-        )
-        for a in autorias
-        if a.libro is not None
-    ]
+    uow: AutoresUnitOfWork, autor_id: int, page: int, size: int
+) -> Pagina[LibroDeAutor]:
+    async with uow:
+        await _obtener(uow, autor_id)
+        pagina = await uow.libros.listar_autorias(autor_id, page=page, size=size)
+        items = [
+            LibroDeAutor(
+                libro_id=autoria.libro_id,
+                isbn=autoria.libro.isbn,
+                titulo=autoria.libro.titulo,
+                precio=autoria.libro.precio,
+                rol=autoria.rol,
+                orden=autoria.orden,
+            )
+            for autoria in pagina.items
+        ]
+        return armar_pagina(items, pagina.total, page, size)

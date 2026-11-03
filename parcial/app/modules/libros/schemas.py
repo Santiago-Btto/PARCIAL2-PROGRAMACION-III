@@ -2,7 +2,9 @@ import re
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import field_validator, model_validator
+from datetime import datetime
+
+from pydantic import ConfigDict, field_validator, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.core.parametros import MAX_ID
@@ -25,16 +27,20 @@ class AutoriaCreate(SQLModel):
     """Elemento de la lista "autores" del alta: el id del autor (ya existe)
     más los datos propios de la relación."""
 
+    model_config = ConfigDict(extra="forbid")
+
     autor_id: int = Field(ge=1, le=MAX_ID)
     rol: RolAutoria
     orden: int = Field(ge=1, le=100)
 
 
 class LibroCreate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     isbn: str = Field(min_length=10, max_length=20)
     titulo: str = Field(min_length=1, max_length=200)
     precio: Decimal = Field(gt=0, max_digits=10, decimal_places=2)  # RN-03
-    stock: int = Field(default=0, ge=0, le=MAX_ID)  # RN-03
+    stock_inicial: int = Field(default=0, ge=0, le=MAX_ID)
     editorial_id: int = Field(ge=1, le=MAX_ID)
     genero_id: int | None = Field(default=None, ge=1, le=MAX_ID)
     autores: list[AutoriaCreate] = Field(min_length=1)
@@ -58,15 +64,16 @@ class LibroCreate(SQLModel):
 
 
 class LibroUpdate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     isbn: str | None = Field(default=None, min_length=10, max_length=20)
     titulo: str | None = Field(default=None, min_length=1, max_length=200)
     precio: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
-    stock: int | None = Field(default=None, ge=0, le=MAX_ID)
     editorial_id: int | None = Field(default=None, ge=1, le=MAX_ID)
     # genero_id sí acepta null explícito: quita el género (agregación opcional).
     genero_id: int | None = Field(default=None, ge=1, le=MAX_ID)
 
-    @field_validator("isbn", "titulo", "precio", "stock", "editorial_id")
+    @field_validator("isbn", "titulo", "precio", "editorial_id")
     @classmethod
     def no_nulo(cls, valor: object) -> object:
         if valor is None:
@@ -77,6 +84,31 @@ class LibroUpdate(SQLModel):
     @classmethod
     def isbn_valido(cls, valor: str | None) -> str | None:
         return _validar_isbn(valor) if valor is not None else valor
+
+
+class ReposicionCreate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cantidad: int = Field(gt=0, le=MAX_ID)
+    motivo: str = Field(min_length=1, max_length=200)
+
+    @field_validator("motivo")
+    @classmethod
+    def motivo_no_vacio(cls, valor: str) -> str:
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("El motivo no puede estar vacío.")
+        return valor
+
+
+class MovimientoStockRead(SQLModel):
+    id: int
+    libro_id: int
+    venta_id: int | None
+    usuario_id: int
+    cantidad: int
+    motivo: str
+    cuando: datetime
 
 
 class AutoriaRead(SQLModel):

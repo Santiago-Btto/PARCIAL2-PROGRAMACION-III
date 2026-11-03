@@ -1,13 +1,17 @@
-from pydantic import field_validator
+from pydantic import ConfigDict, field_validator
 from sqlmodel import Field, SQLModel
 
 
 class EditorialCreate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1, max_length=120)
     pais: str = Field(min_length=1, max_length=80)
 
 
 class EditorialUpdate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1, max_length=120)
     pais: str | None = Field(default=None, min_length=1, max_length=80)
 

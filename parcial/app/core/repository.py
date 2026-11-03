@@ -13,9 +13,9 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.sql.elements import ColumnElement
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 T = TypeVar("T", bound=SQLModel)
