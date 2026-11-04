@@ -18,7 +18,13 @@ pytestmark = pytest.mark.anyio
 
 
 def test_catalogo_publico_y_administrativo_montados():
-    metodos = {(ruta.path, metodo) for ruta in app.routes for metodo in getattr(ruta, "methods", ())}
+    # Se lee el esquema OpenAPI y no app.routes: desde FastAPI 0.15x los routers
+    # incluidos aparecen como _IncludedRouter y no exponen .path ni .methods.
+    metodos = {
+        (ruta, metodo.upper())
+        for ruta, operaciones in app.openapi()["paths"].items()
+        for metodo in operaciones
+    }
     assert ("/libros/", "GET") in metodos
     assert ("/libros/", "POST") in metodos
     assert ("/libros/{libro_id}/reponer", "POST") in metodos
