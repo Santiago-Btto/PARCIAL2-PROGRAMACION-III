@@ -1,0 +1,32 @@
+# Lo que no entra en la imagen. Lo que se copia a una capa queda ahí para siempre.
+
+# Secretos: la configuración entra con --env-file al correr el contenedor
+.env
+.env.*
+
+# Entorno virtual: las dependencias se instalan dentro de la imagen
+.venv/
+venv/
+
+# Historial de git (puede guardar secretos borrados)
+.git/
+.gitignore
+
+# Generados por Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editores
+.vscode/
+.idea/
+
+# No hacen falta para correr la aplicación
+test/
+evidencia/
+*.md
+Dockerfile
+.dockerignore
+env.example
