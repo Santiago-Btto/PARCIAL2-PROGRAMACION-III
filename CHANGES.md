@@ -118,7 +118,7 @@ Paso │ Agente A (Backend Core)               │ Agente B (Backend Aux)       
 ## FASE 2 — Catálogo, Borrado Lógico y Trazabilidad de Stock (Push 3)
 
 ### [C-03] `catalogo-soft-delete-and-stock`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado y archivado (`openspec/changes/archive/2026-11-03-c-03-catalogo-soft-delete-and-stock/`)
 - **Scope**: Refactorización de `editoriales`, `generos`, `autores` y `libros` al patrón `Router → Service → UoW → Repository → Model`, paginación estandarizada, borrado lógico de libros y punto único de modificación de stock con `MovimientoStock` (Ejercicios 3 y 6)
   - Refactor en capas de `parcial/app/modules/editoriales/`, `generos/` y `autores/`: `repository.py`, `unit_of_work.py`, `service.py`, `schemas.py` (`extra="forbid"`, `exclude_unset=True` en `PATCH`) y `router.py`; listados `GET /editoriales` y `GET /generos` paginados con `Pagina[T]` (`{items, total, page, size, pages}`, `422` si `page > pages`); lecturas de libros por entidad (`GET /editoriales/{id}/libros`, `GET /generos/{id}/libros`, `GET /autores/{id}/libros`) filtrando libros dados de baja; escrituras (`POST` y `PATCH`) protegidas con `RequiereRol("ADMIN")`
   - `LibroRepository(SoftDeleteRepository[Libro])` y `MovimientoStockRepository(BaseRepository[MovimientoStock])` en `parcial/app/modules/libros/repository.py`: precarga declarada con `joinedload(Libro.editorial)`, `joinedload(Libro.genero)` y `selectinload(Libro.autores_asociados).joinedload(LibroAutor.autor)` para evitar `N+1` con `lazy="raise"`; filtro automático `borrado_en IS NULL` en catálogo público y método `get_by_id_including_deleted` para historial
@@ -144,7 +144,7 @@ Paso │ Agente A (Backend Core)               │ Agente B (Backend Aux)       
 ## FASE 3 — Clientes, Ventas Transaccionales y Suite de Pruebas (Push 4)
 
 ### [C-04] `clientes-ventas-seed-and-tests`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado y archivado (`openspec/changes/archive/2026-11-03-c-04-clientes-ventas-seed-and-tests/`)
 - **Scope**: Refactor de `clientes` y `ventas` a `Repository + UnitOfWork`, registro atómico de ventas con descuento de stock y `BackgroundTasks`, consulta de compras propias (`/mis-ventas` y `/ventas/{id}`), `seed.py` definitivo y suite completa `test/*.http` + evidencias `C-01` a `C-16` (Ejercicios 6 y 8)
   - Refactor de `parcial/app/modules/clientes/`: `ClienteRepository`, `PerfilClienteRepository`, `ClientesUnitOfWork`, `service.py`, `schemas.py` y `router.py` protegidos para `VENDEDOR` y `ADMIN` (`POST /clientes`, `GET /clientes/{id}`, `PATCH /clientes/{id}`, `POST /clientes/{id}/perfil` y `GET /clientes/{id}/ventas` con precarga sin `N+1`)
   - Refactor de `parcial/app/modules/ventas/`: `VentaRepository` (con `joinedload(Venta.cliente)` y `selectinload(Venta.renglones).joinedload(RenglonVenta.libro)` sin filtrar `borrado_en` para preservar libros dados de baja en ventas históricas) y `VentasUnitOfWork` que compone `VentaRepository`, `ClienteRepository`, `LibroRepository` y `MovimientoStockRepository` sobre la misma `AsyncSession`
