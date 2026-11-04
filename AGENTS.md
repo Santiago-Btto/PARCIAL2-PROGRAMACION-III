@@ -65,7 +65,7 @@ El plan de implementación completo está en [CHANGES.md](CHANGES.md). Resumen:
 
 - **Total**: 5 changes en 5 fases (alineados a los 5 bloques/pushes del grupo).
 - **Camino crítico** (4): `C-01 → C-02 → C-03 → C-04*` (con `C-01 → C-05*` en paralelo sobre `despliegue/`).
-- **Estado**: `C-01` a `C-04` archivados (Pushes 1 a 4); siguiente en cola: `C-05` (`docker-alpine-and-vps-deploy`).
+- **Estado**: `C-01` a `C-05` archivados (Pushes 1 a 5). Pendiente fuera del repo: correr en el VPS los casos `D-01` a `D-08` (`despliegue/DEPLOY.md` §Pendiente en el VPS).
 
 **Antes de cualquier `/opsx:propose`**: leé [CHANGES.md](CHANGES.md), identificá las dependencias del change y los archivos de "Leer antes".
 
