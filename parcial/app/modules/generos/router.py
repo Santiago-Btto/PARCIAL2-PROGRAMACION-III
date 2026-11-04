@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 
 from app.core.dependencies import requiere_rol
-from app.core.paginacion import PageQuery, Pagina, SizeQuery
+from app.core.paginacion import PageQuery, Pagina, SizeQuery, convertir_pagina
 from app.core.parametros import IdPath
 from app.modules.generos import service
 from app.modules.generos.schemas import GeneroCreate, GeneroRead
@@ -32,4 +32,5 @@ async def listar_libros_de_genero(
     genero_id: IdPath, uow: GenerosUowDep,
     page: PageQuery = 1, size: SizeQuery = 20,
 ):
-    return await service.listar_libros(uow, genero_id, page=page, size=size)
+    pagina = await service.listar_libros(uow, genero_id, page=page, size=size)
+    return convertir_pagina(pagina, LibroListado)

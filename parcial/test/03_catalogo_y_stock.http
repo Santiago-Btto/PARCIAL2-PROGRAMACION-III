@@ -1,0 +1,255 @@
+# Catálogo, stock y baja lógica: casos C-06 (parte del catálogo), C-13 y C-16.
+# Antes de este archivo: python seed.py
+# Libros del seed: 1 Rayuela (stock 10), 2 Antología de la literatura fantástica (5),
+# 3 Ficciones (8), 4 Respiración artificial (3) y 5 Bestiario (1).
+# El caso C-14 (sólo agregado) se demuestra en psql con test/solo_agregado.sql.
+
+@base = http://localhost:8000
+
+### Login del administrador
+# @name loginAdmin
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+### Login del vendedor
+# @name loginVendedor
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+######################## Catálogo público ########################
+
+### Listado público con el envoltorio de la sección 2.9, sin sesión
+# Esperado: 200 {"items": [Rayuela, Antología...], "total": 5, "page": 1, "size": 2, "pages": 3}
+GET {{base}}/libros/?size=2
+
+### Página más allá de la última
+# Esperado: 422 {"detail": "La página 4 no existe: hay 3"}
+GET {{base}}/libros/?size=2&page=4
+
+### Detalle público de un libro, con editorial, género y autores
+# Esperado: 200
+GET {{base}}/libros/2
+
+### Editoriales y géneros paginados
+# Esperado: 200, total 3 en cada uno
+GET {{base}}/editoriales/?page=1&size=20
+
+###
+GET {{base}}/generos/?page=1&size=20
+
+### Libros de una editorial, de un género y de un autor
+# Esperado: 200 paginados (sólo vigentes); 404 si la editorial no existe
+GET {{base}}/editoriales/3/libros
+
+###
+GET {{base}}/generos/2/libros
+
+###
+GET {{base}}/autores/5/libros
+
+###
+# Esperado: 404
+GET {{base}}/editoriales/999/libros
+
+######################## C-06 · 401 contra 403 en el catálogo ########################
+
+### C-06 · Crear un libro sin sesión
+# Esperado: 401
+# @no-cookie-jar
+POST {{base}}/libros/
+Content-Type: application/json
+
+{"isbn": "978-950-00-0006-6", "titulo": "Los que aman, odian", "precio": "21000.00",
+ "stock_inicial": 4, "editorial_id": 1, "genero_id": 1,
+ "autores": [{"autor_id": 3, "rol": "coautor", "orden": 1}, {"autor_id": 4, "rol": "coautor", "orden": 2}]}
+
+### C-06 · Un vendedor que crea un libro
+# Esperado: 403 (está autenticado, pero no es ADMIN)
+# @no-cookie-jar
+POST {{base}}/libros/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"isbn": "978-950-00-0006-6", "titulo": "Los que aman, odian", "precio": "21000.00",
+ "stock_inicial": 4, "editorial_id": 1, "genero_id": 1,
+ "autores": [{"autor_id": 3, "rol": "coautor", "orden": 1}, {"autor_id": 4, "rol": "coautor", "orden": 2}]}
+
+######################## Alta con stock inicial ########################
+
+### Alta de libro (cuerpo de ejemplo de la consigna)
+# Esperado: 201 con stock 4; deja el movimiento «Stock inicial» de +4
+# @name altaLibro
+# @no-cookie-jar
+POST {{base}}/libros/
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{
+  "isbn": "978-950-00-0006-6",
+  "titulo": "Los que aman, odian",
+  "precio": "21000.00",
+  "stock_inicial": 4,
+  "editorial_id": 1,
+  "genero_id": 1,
+  "autores": [
+    { "autor_id": 3, "rol": "coautor", "orden": 1 },
+    { "autor_id": 4, "rol": "coautor", "orden": 2 }
+  ]
+}
+
+### Movimientos del libro nuevo
+# Esperado: 200, un único movimiento de +4 con motivo «Stock inicial»
+# @no-cookie-jar
+GET {{base}}/libros/{{altaLibro.response.body.$.id}}/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### Alta con el viejo campo stock
+# Esperado: 422 (el stock sólo entra como stock_inicial)
+# @no-cookie-jar
+POST {{base}}/libros/
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"isbn": "978-950-00-0007-2", "titulo": "Con stock", "precio": "1000.00", "stock": 3,
+ "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### Alta con una editorial que no existe
+# Esperado: 409 con mensaje propio, sin texto de la base; no queda el libro a medias
+# @no-cookie-jar
+POST {{base}}/libros/
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"isbn": "978-950-00-0007-2", "titulo": "Sin editorial", "precio": "1000.00", "stock_inicial": 2,
+ "editorial_id": 999, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### Editorial con nombre repetido
+# Esperado: 409 {"detail": "Ya existe una editorial con ese nombre."}
+# @no-cookie-jar
+POST {{base}}/editoriales/
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Emecé", "pais": "Argentina"}
+
+######################## C-13 · Reponer, dar de baja y volver a cargar el ISBN ########################
+# Se usa Rayuela (libro 1) porque figura en la venta 1: así se ve que la venta vieja la sigue mostrando.
+
+### C-13 · Reponer Rayuela
+# Esperado: 200 con stock 13 (10 + 3) y un movimiento nuevo de +3
+# @no-cookie-jar
+POST {{base}}/libros/1/reponer
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cantidad": 3, "motivo": "Reposición del proveedor"}
+
+### C-13 · Reposición con cantidad cero
+# Esperado: 422
+# @no-cookie-jar
+POST {{base}}/libros/1/reponer
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cantidad": 0, "motivo": "Nada"}
+
+### C-13 · Dar de baja Rayuela
+# Esperado: 204 sin cuerpo
+# @no-cookie-jar
+DELETE {{base}}/libros/1
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-13 · Ya no aparece en el catálogo
+# Esperado: 404 en el detalle, y el listado no la incluye
+GET {{base}}/libros/1
+
+###
+GET {{base}}/libros/?titulo=rayuela
+
+### C-13 · No se puede reponer un libro dado de baja
+# Esperado: 409
+# @no-cookie-jar
+POST {{base}}/libros/1/reponer
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cantidad": 1, "motivo": "Después de la baja"}
+
+### C-13 · Su historial de movimientos se conserva
+# Esperado: 200 con +11 (inicial), -1 (venta 1) y +3 (reposición)
+# @no-cookie-jar
+GET {{base}}/libros/1/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-13 · Volver a cargar el mismo ISBN
+# Esperado: 201 (el índice único parcial sólo mira los vigentes)
+# @no-cookie-jar
+POST {{base}}/libros/
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"isbn": "978-950-00-0001-1", "titulo": "Rayuela (edición conmemorativa)", "precio": "32000.00",
+ "stock_inicial": 2, "editorial_id": 1, "genero_id": 1,
+ "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### C-13 · Un segundo vigente con ese ISBN
+# Esperado: 409 {"detail": "Ya existe un libro vigente con ese ISBN."}
+# @no-cookie-jar
+POST {{base}}/libros/
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"isbn": "978-950-00-0001-1", "titulo": "Rayuela (otra)", "precio": "30000.00",
+ "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### C-13 · La venta vieja sigue mostrando el título del libro dado de baja
+# Esperado: 200; el renglón del libro 1 dice «Rayuela»
+# @no-cookie-jar
+GET {{base}}/ventas/1
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+######################## C-16 · Búsqueda, paginación y PATCH ########################
+
+### C-16 · Búsqueda con texto de inyección SQL (' OR '1'='1)
+# Esperado: 200 con items [] y total 0 (parámetros ligados: se busca ese texto literal)
+GET {{base}}/libros/?titulo=%27%20OR%20%271%27%3D%271
+
+### C-16 · Paginación con filtro (sin distinguir mayúsculas)
+# Esperado: 200 con Ficciones, total 1 y pages 1
+GET {{base}}/libros/?titulo=ficc&size=1
+
+### C-16 · Página 2 con ese mismo filtro
+# Esperado: 422 (hay una sola página: total cuenta con los mismos filtros)
+GET {{base}}/libros/?titulo=ficc&size=1&page=2
+
+### C-16 · Tamaño fuera de rango
+# Esperado: 422
+GET {{base}}/libros/?size=500
+
+### C-16 · PATCH parcial: sólo cambia lo enviado
+# Esperado: 200; cambia sólo el precio: título, ISBN y stock quedan igual
+# @no-cookie-jar
+PATCH {{base}}/libros/3
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"precio": "23500.00"}
+
+### C-16 · PATCH del stock
+# Esperado: 422 (el stock sólo cambia por movimientos)
+# @no-cookie-jar
+PATCH {{base}}/libros/3
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"stock": 99}
+
+### C-16 · El libro sigue con su stock original
+# Esperado: 200 con stock 8 y precio 23500.00
+GET {{base}}/libros/3

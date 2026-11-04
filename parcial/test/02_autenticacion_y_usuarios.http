@@ -1,0 +1,309 @@
+# Autenticación, autorización y administración de roles: casos C-02 a C-05 y C-07 a C-09.
+# Antes de este archivo: python seed.py
+# Usuarios del seed: 1 admin@example.com (ADMIN), 2 admin2@example.com (ADMIN),
+# 3 vendedor@example.com (VENDEDOR), 4 ana@example.com (CLIENTE) y
+# 5 nuevo@example.com (VENDEDOR, con el cambio de contraseña obligatorio).
+
+@base = http://localhost:8000
+
+######################## C-02 · Registro ########################
+
+### C-02 · Auto-registro de un cliente
+# Esperado: 201 con el usuario (sin password_hash). Se crean usuario, rol CLIENTE y ficha de cliente.
+POST {{base}}/auth/registro
+Content-Type: application/json
+
+{"nombre": "Marta Gómez", "email": "marta@example.com", "password": "marta1234"}
+
+### C-02 · Correo repetido de USUARIO
+# Esperado: 409 {"detail": "Ya existe un usuario registrado con ese correo electrónico."}
+POST {{base}}/auth/registro
+Content-Type: application/json
+
+{"nombre": "Otra Ana", "email": "ana@example.com", "password": "otra12345"}
+
+### C-02 · Correo repetido de CLIENTE (Lucía existe como cliente, sin usuario)
+# Esperado: 409 {"detail": "Ya existe un cliente registrado con ese correo electrónico."}
+# El registro no se apropia de la ficha de Lucía.
+POST {{base}}/auth/registro
+Content-Type: application/json
+
+{"nombre": "Lucía F.", "email": "lucia@example.com", "password": "lucia1234"}
+
+### C-02 · El registro rechazado no dejó ninguna fila suelta: no hay usuario lucia@
+# Esperado: 401 (el mismo cuerpo que una contraseña mala: el usuario no existe)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "lucia@example.com", "password": "lucia1234"}
+
+### C-02 · Un rol en el cuerpo del registro no se acepta (extra="forbid")
+# Esperado: 422
+POST {{base}}/auth/registro
+Content-Type: application/json
+
+{"nombre": "Pícaro", "email": "picaro@example.com", "password": "picaro123", "rol": "ADMIN"}
+
+### C-02 · Contraseña de más de 72 bytes (37 «ñ» = 74 bytes)
+# Esperado: 422, no 500
+POST {{base}}/auth/registro
+Content-Type: application/json
+
+{"nombre": "Largo", "email": "largo@example.com", "password": "ñññññññññññññññññññññññññññññññññññññ"}
+
+######################## C-03 · Cookie ########################
+
+### C-03 · Login correcto
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# Set-Cookie: access_token=...; HttpOnly; Max-Age=1800; Path=/; SameSite=lax  (el cuerpo no trae el token)
+# @name loginAdmin
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+### C-03 · Con la cookie
+# Esperado: 200 con roles_vigentes ["ADMIN"] y roles_token ["ADMIN"]
+# @no-cookie-jar
+GET {{base}}/auth/yo
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-03 · Sin cookie
+# Esperado: 401
+# @no-cookie-jar
+GET {{base}}/auth/yo
+
+### C-03 · Con el token en Authorization: Bearer (no se lee de ahí)
+# Esperado: 401
+# @no-cookie-jar
+GET {{base}}/auth/yo
+Authorization: Bearer {{loginAdmin.response.headers.Set-Cookie}}
+
+######################## C-04 · Mismo cuerpo, mismo tiempo ########################
+
+### C-04 · Correo existente con contraseña mala
+# Esperado: 401 {"detail": "Credenciales inválidas."}  (mirar el tiempo de respuesta)
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "incorrecta"}
+
+### C-04 · Correo inexistente
+# Esperado: 401 con EXACTAMENTE el mismo cuerpo y un tiempo parecido (se verifica contra el hash ficticio)
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "nadie@example.com", "password": "incorrecta"}
+
+######################## C-05 · Límite de intentos ########################
+# Seis intentos fallidos seguidos con el mismo correo desde la misma dirección.
+# Se usa admin2 para no bloquear al administrador que usan los demás casos.
+
+### C-05 · Intento fallido 1 — Esperado: 401
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "mala-1"}
+
+### C-05 · Intento fallido 2 — Esperado: 401
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "mala-2"}
+
+### C-05 · Intento fallido 3 — Esperado: 401
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "mala-3"}
+
+### C-05 · Intento fallido 4 — Esperado: 401
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "mala-4"}
+
+### C-05 · Intento fallido 5 — Esperado: 401
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "mala-5"}
+
+### C-05 · Sexto intento (aunque la contraseña sea la correcta)
+# Esperado: 429 con Retry-After, en pocos milisegundos (no se calcula ningún hash).
+# Los cinco fallos quedan en intento_acceso aunque cada petición haya respondido 401:
+#   SELECT email, ip, exito, cuando FROM intento_acceso ORDER BY id;
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "admin21234"}
+
+######################## C-07 · Revocar un rol con la sesión abierta ########################
+
+### C-07 · El vendedor inicia sesión
+# @name loginVendedor
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+### C-07 · Con su rol vigente, el vendedor lista las ventas
+# Esperado: 200
+# @no-cookie-jar
+GET {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-07 · El administrador le revoca el rol VENDEDOR (usuario 3)
+# Esperado: 200 con revocada_en completo; la fila no se borra
+# @no-cookie-jar
+DELETE {{base}}/usuarios/3/roles/VENDEDOR
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-07 · La MISMA cookie del vendedor, en la petición siguiente
+# Esperado: 403 (los permisos se deciden con los roles vigentes en la base, no con el token)
+# @no-cookie-jar
+GET {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-07 · /auth/yo muestra la diferencia
+# Esperado: 200 con roles_vigentes [] y roles_token ["VENDEDOR"]
+# @no-cookie-jar
+GET {{base}}/auth/yo
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-07 · La fila revocada sigue en el historial
+# Esperado: 200, la asignación VENDEDOR con revocada_en
+# @no-cookie-jar
+GET {{base}}/usuarios/3/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-07 · Vencimiento en el pasado
+# Esperado: 422 (no 409: una fecha pasada no choca con nada guardado)
+# @no-cookie-jar
+POST {{base}}/usuarios/3/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"rol": "VENDEDOR", "vence_en": "2020-01-01T00:00:00-03:00"}
+
+### C-07 · Vencimiento sin zona horaria
+# Esperado: 422 (¿la hora de quién?)
+# @no-cookie-jar
+POST {{base}}/usuarios/3/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"rol": "VENDEDOR", "vence_en": "2030-01-01T00:00:00"}
+
+### C-07 · Reasignación con vencimiento válido
+# Esperado: 201 con una fila NUEVA (la revocada sigue)
+# @no-cookie-jar
+POST {{base}}/usuarios/3/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"rol": "VENDEDOR", "vence_en": "2030-01-01T00:00:00-03:00"}
+
+### C-07 · Una segunda asignación abierta del mismo rol
+# Esperado: 409 (índice único parcial de asignacion_rol)
+# @no-cookie-jar
+POST {{base}}/usuarios/3/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"rol": "VENDEDOR"}
+
+######################## C-08 · Autoprotección ########################
+
+### C-08 · El administrador intenta revocarse su propio ADMIN
+# Esperado: 409
+# @no-cookie-jar
+DELETE {{base}}/usuarios/1/roles/ADMIN
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-08 · Un vendedor no administra roles
+# Esperado: 403
+# @no-cookie-jar
+GET {{base}}/usuarios/1/roles
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+######################## C-09 · Cambio obligatorio de contraseña ########################
+
+### C-09 · nuevo@example.com inicia sesión
+# Esperado: 200 con "debe_cambiar_password": true
+# @name loginNuevo
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "nuevo@example.com", "password": "provisoria1234"}
+
+### C-09 · Bloqueado en las rutas protegidas
+# Esperado: 403 (aunque tiene el rol VENDEDOR vigente)
+# @no-cookie-jar
+GET {{base}}/ventas/
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+### C-09 · /auth sigue disponible
+# Esperado: 200 con "debe_cambiar_password": true
+# @no-cookie-jar
+GET {{base}}/auth/yo
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+### C-09 · Cambio de contraseña
+# Esperado: 200 y una línea en evento_seguridad, en la misma transacción
+# @no-cookie-jar
+POST {{base}}/auth/cambiar-password
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"password_actual": "provisoria1234", "password_nueva": "definitiva1234"}
+
+### C-09 · La MISMA cookie ya sirve en las rutas protegidas, sin iniciar sesión de nuevo
+# Esperado: 200
+# @no-cookie-jar
+GET {{base}}/ventas/
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+######################## Personal e historial de seguridad ########################
+
+### Alta de personal con contraseña provisoria
+# Esperado: 201 con "debe_cambiar_password": true
+# @no-cookie-jar
+POST {{base}}/usuarios
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Paula Sosa", "email": "paula@example.com", "rol": "VENDEDOR", "password_provisoria": "paula12345"}
+
+### Alta de personal con correo repetido
+# Esperado: 409
+# @no-cookie-jar
+POST {{base}}/usuarios
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Repetido", "email": "vendedor@example.com", "rol": "VENDEDOR", "password_provisoria": "repetido123"}
+
+### Historial de seguridad (RN-16)
+# Esperado: 200 paginado; aparecen la carga inicial (actor SISTEMA), la revocación,
+# las asignaciones, el cambio de contraseña y el alta de personal
+# @no-cookie-jar
+GET {{base}}/eventos?page=1&size=20
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### Cierre de sesión
+# Esperado: 200 y Set-Cookie que borra access_token
+# @no-cookie-jar
+POST {{base}}/auth/logout
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}

@@ -1,0 +1,359 @@
+# Clientes y ventas: casos C-06, C-10, C-11, C-12 y C-15, y lo propio (/mis-ventas).
+# Antes de este archivo: python seed.py   — ejecutar EN ORDEN.
+# Clientes del seed: 1 Lucía Fernández (con perfil), 2 Tomás Ríos, 3 Ana Paz (usuario ana@example.com).
+# Libros: 1 Rayuela $25000 (stock 10), 2 Antología $30000 (5), 3 Ficciones $22000 (8),
+#         4 Respiración artificial $27000 (3), 5 Bestiario $18000 (1).
+# Venta 1: de Lucía, 1 Rayuela + 2 Ficciones = 69000.00.
+#
+# Después de cada caso de venta se puede comprobar en psql que, en los cinco libros,
+# el stock coincide con la suma de sus movimientos (la consulta no debe devolver filas):
+#   SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma
+#   FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id
+#   GROUP BY l.id, l.stock HAVING l.stock <> COALESCE(SUM(m.cantidad), 0);
+
+@base = http://localhost:8000
+
+### Login del vendedor
+# @name loginVendedor
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+### Login del administrador
+# @name loginAdmin
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+### Login de la cliente Ana
+# @name loginAna
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "ana@example.com", "password": "ana12345"}
+
+######################## Clientes (VENDEDOR o ADMIN) ########################
+
+### Alta de cliente en el mostrador
+# Esperado: 201 con perfil null y usuario_id null
+# @name altaCliente
+# @no-cookie-jar
+POST {{base}}/clientes/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Carla Méndez", "email": "Carla@Example.com"}
+
+### Email repetido (se guarda en minúsculas)
+# Esperado: 409 {"detail": "Ya existe un cliente con ese email."}
+# @no-cookie-jar
+POST {{base}}/clientes/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Carla otra", "email": "carla@example.com"}
+
+### Campo no declarado
+# Esperado: 422
+# @no-cookie-jar
+POST {{base}}/clientes/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Con usuario", "email": "conusuario@example.com", "usuario_id": 1}
+
+### Perfil del cliente nuevo
+# Esperado: 201
+# @no-cookie-jar
+POST {{base}}/clientes/{{altaCliente.response.body.$.id}}/perfil
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"telefono": "261 555-0199", "direccion": "Belgrano 300, Mendoza"}
+
+### Segundo perfil del mismo cliente
+# Esperado: 409 {"detail": "El cliente ya tiene un perfil."}
+# @no-cookie-jar
+POST {{base}}/clientes/{{altaCliente.response.body.$.id}}/perfil
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"telefono": "261 555-0200", "direccion": "Otra 123"}
+
+### Perfil de un cliente inexistente
+# Esperado: 404
+# @no-cookie-jar
+POST {{base}}/clientes/999/perfil
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"telefono": "261 555-0300", "direccion": "Nadie 1"}
+
+### Detalle con su perfil (un objeto, no una lista)
+# Esperado: 200
+# @no-cookie-jar
+GET {{base}}/clientes/1
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### PATCH parcial: sólo el nombre
+# Esperado: 200; el email no cambia
+# @no-cookie-jar
+PATCH {{base}}/clientes/2
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Tomás A. Ríos"}
+
+### PATCH con el email de otro cliente
+# Esperado: 409
+# @no-cookie-jar
+PATCH {{base}}/clientes/2
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"email": "lucia@example.com"}
+
+### Ventas de un cliente (paginadas)
+# Esperado: 200 con la venta 1
+# @no-cookie-jar
+GET {{base}}/clientes/1/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### Una cliente no atiende el mostrador
+# Esperado: 403
+# @no-cookie-jar
+GET {{base}}/clientes/1
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+######################## C-06 · 401 contra 403, y lo propio ########################
+
+### C-06 · Registrar una venta sin sesión
+# Esperado: 401
+# @no-cookie-jar
+POST {{base}}/ventas/
+Content-Type: application/json
+
+{"cliente_id": 3, "renglones": [{"libro_id": 4, "cantidad": 1}]}
+
+### C-06 · El vendedor registra una venta para Ana (cliente 3)
+# Esperado: 201, venta 2: 1 Respiración artificial, total 27000.00
+# @name ventaAna
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 3, "renglones": [{"libro_id": 4, "cantidad": 1}]}
+
+### C-06 · La cliente ve su venta
+# Esperado: 200
+# @no-cookie-jar
+GET {{base}}/ventas/{{ventaAna.response.body.$.id}}
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06 · La cliente NO ve la venta ajena (la 1 es de Lucía)
+# Esperado: 403
+# @no-cookie-jar
+GET {{base}}/ventas/1
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06 · Una venta que no existe
+# Esperado: 404
+# @no-cookie-jar
+GET {{base}}/ventas/999
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06 · Una cliente no registra ventas
+# Esperado: 403
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 3, "renglones": [{"libro_id": 2, "cantidad": 1}]}
+
+### Lo propio: las ventas de Ana
+# Esperado: 200 con la venta de Ana y ninguna otra
+# @no-cookie-jar
+GET {{base}}/mis-ventas
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### Lo propio sin ficha de cliente (el vendedor no es cliente)
+# Esperado: 200 con items [], total 0, pages 1
+# @no-cookie-jar
+GET {{base}}/mis-ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+######################## C-11 · Un libro que no alcanza ########################
+
+### C-11 · Rayuela (1 ejemplar, alcanza) y Bestiario (2 ejemplares, hay 1)
+# Esperado: 409 {"detail": "No hay stock suficiente de «Bestiario»: hay 1 y se piden 2."}
+# No queda la venta, ni los renglones, ni los descuentos, ni los movimientos.
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "renglones": [{"libro_id": 1, "cantidad": 1}, {"libro_id": 5, "cantidad": 2}]}
+
+### C-11 · El stock de Rayuela sigue en 10
+# Esperado: 200 con stock 10
+GET {{base}}/libros/1
+
+### C-11 · Y sus movimientos no cambiaron (+11 inicial, -1 de la venta 1)
+# Esperado: 200 con dos movimientos
+# @no-cookie-jar
+GET {{base}}/libros/1/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+######################## C-10 · Venta válida con dos renglones ########################
+
+### C-10 · Venta para Lucía: 2 Rayuela y 1 Ficciones
+# Esperado: 201 con precio_unitario 25000.00 y 22000.00 copiados de los libros y total 72000.00.
+# En la consola, DESPUÉS de la línea de la respuesta:
+#   INFO:     Comprobante de la venta N enviado a lucia@example.com
+# @name ventaValida
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "renglones": [{"libro_id": 1, "cantidad": 2}, {"libro_id": 3, "cantidad": 1}]}
+
+### C-10 · El stock de cada libro bajó: Rayuela 8
+# Esperado: 200 con stock 8
+GET {{base}}/libros/1
+
+### C-10 · Ficciones 7
+# Esperado: 200 con stock 7
+GET {{base}}/libros/3
+
+### C-10 · Un movimiento por renglón, con la venta y el vendedor
+# Esperado: 200; el último movimiento es -2 con venta_id de la venta nueva y motivo «Venta #N»
+# @no-cookie-jar
+GET {{base}}/libros/1/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-10 · El precio y el total no viajan en el cuerpo
+# Esperado: 422
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "total": "1.00", "renglones": [{"libro_id": 1, "cantidad": 1, "precio_unitario": "1.00"}]}
+
+### C-10 · Libro repetido en la venta
+# Esperado: 422
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "renglones": [{"libro_id": 1, "cantidad": 1}, {"libro_id": 1, "cantidad": 2}]}
+
+### C-10 · Venta sin renglones
+# Esperado: 422
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "renglones": []}
+
+### C-10 · Las ventas no se modifican
+# Esperado: 405 (no hay PATCH)
+# @no-cookie-jar
+PATCH {{base}}/ventas/1
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 2}
+
+######################## C-15 · Detalle con número fijo de consultas ########################
+# Con SQL_ECHO=true, comparar en la consola las consultas del detalle de la venta 1
+# (2 renglones) con las de la venta de 4 renglones: es la misma cantidad.
+# También: python -m scripts.evidencia_c15  (guarda evidencia/C-15_consultas.txt)
+
+### C-15 · Venta con 4 renglones
+# Esperado: 201, total 104000.00 (25000 + 30000 + 22000 + 27000)
+# @name venta4
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 2, "renglones": [
+  {"libro_id": 1, "cantidad": 1}, {"libro_id": 2, "cantidad": 1},
+  {"libro_id": 3, "cantidad": 1}, {"libro_id": 4, "cantidad": 1}
+]}
+
+### C-15 · Detalle de la venta 1 (2 renglones)
+# Esperado: 200. Consultas de la venta: venta JOIN cliente, y renglones JOIN libro.
+# @no-cookie-jar
+GET {{base}}/ventas/1
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-15 · Detalle de la venta de 4 renglones
+# Esperado: 200 y la MISMA cantidad de consultas que el pedido anterior
+# @no-cookie-jar
+GET {{base}}/ventas/{{venta4.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+######################## C-12 · Cliente o libro inexistente, o dado de baja ########################
+
+### C-12 · Cliente inexistente
+# Esperado: 409 {"detail": "El cliente indicado no existe."}, sin dejar escrituras
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 999, "renglones": [{"libro_id": 2, "cantidad": 1}]}
+
+### C-12 · Libro inexistente
+# Esperado: 409 {"detail": "No existe el libro con id 999."}, sin dejar escrituras
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "renglones": [{"libro_id": 2, "cantidad": 1}, {"libro_id": 999, "cantidad": 1}]}
+
+### C-12 · El administrador da de baja Bestiario (libro 5)
+# Esperado: 204
+# @no-cookie-jar
+DELETE {{base}}/libros/5
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-12 · Libro dado de baja
+# Esperado: 409 {"detail": "El libro «Bestiario» está dado de baja."}, sin dejar escrituras
+# @no-cookie-jar
+POST {{base}}/ventas/
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"cliente_id": 1, "renglones": [{"libro_id": 2, "cantidad": 1}, {"libro_id": 5, "cantidad": 1}]}
+
+### C-12 · Antología no se descontó en ninguno de los tres intentos
+# Esperado: 200 con stock 4 (5 iniciales - 1 de la venta de 4 renglones)
+GET {{base}}/libros/2
+
+######################## Listado del personal ########################
+
+### Todas las ventas, paginadas
+# Esperado: 200 con 4 ventas
+# @no-cookie-jar
+GET {{base}}/ventas/?page=1&size=20
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### Página fuera de rango
+# Esperado: 422
+# @no-cookie-jar
+GET {{base}}/ventas/?page=3&size=2
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}

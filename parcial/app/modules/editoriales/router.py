@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 
 from app.core.dependencies import requiere_rol
-from app.core.paginacion import PageQuery, Pagina, SizeQuery
+from app.core.paginacion import PageQuery, Pagina, SizeQuery, convertir_pagina
 from app.core.parametros import IdPath
 from app.modules.editoriales import service
 from app.modules.editoriales.schemas import EditorialCreate, EditorialRead, EditorialUpdate
@@ -44,4 +44,5 @@ async def listar_libros_de_editorial(
     editorial_id: IdPath, uow: EditorialesUowDep,
     page: PageQuery = 1, size: SizeQuery = 20,
 ):
-    return await service.listar_libros(uow, editorial_id, page=page, size=size)
+    pagina = await service.listar_libros(uow, editorial_id, page=page, size=size)
+    return convertir_pagina(pagina, LibroListado)

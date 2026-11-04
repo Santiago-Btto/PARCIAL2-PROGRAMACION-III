@@ -1,0 +1,49 @@
+# Salud del proceso y caso C-01.
+# Antes de este archivo: python seed.py  (y el servidor levantado con uvicorn main:app)
+# Se ejecuta con la extensión «REST Client» de VS Code, petición por petición y en orden.
+# Cada login se nombra con # @name y los pedidos de esa sesión llevan # @no-cookie-jar
+# y la cookie de esa respuesta, así conviven varias sesiones en un mismo archivo.
+
+@base = http://localhost:8000
+
+### Proceso vivo: no toca la base
+# Esperado: 200 {"estado": "vivo"}
+GET {{base}}/health/live
+
+### Proceso listo: ejecuta SELECT 1
+# Esperado: 200 (503 si PostgreSQL no contesta: el proceso puede estar vivo y no listo)
+GET {{base}}/health/ready
+
+### Login del administrador (lo usan los pedidos siguientes)
+# Esperado: 200, el token sólo en Set-Cookie
+# @name loginAdmin
+# @no-cookie-jar
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+### C-01 · Parámetro de ruta que no es entero, con la sesión iniciada
+# Esperado: 422. FastAPI valida el tipo antes de llamar al handler:
+# en la consola sólo aparecen las consultas de la sesión, ninguna del recurso.
+# @no-cookie-jar
+GET {{base}}/libros/abc
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-01 · Mismo resultado en una ruta protegida
+# Esperado: 422
+# @no-cookie-jar
+GET {{base}}/ventas/uno
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-01 · Y en una ruta de administración
+# Esperado: 422
+# @no-cookie-jar
+GET {{base}}/usuarios/dos/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-01 · Un id fuera del rango de INTEGER tampoco llega a la base
+# Esperado: 422 (no 500)
+# @no-cookie-jar
+GET {{base}}/ventas/99999999999
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
