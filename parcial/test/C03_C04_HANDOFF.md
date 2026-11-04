@@ -51,3 +51,12 @@ aislada mediante overrides. En la sesión posterior no fue posible reabrir el
 PostgreSQL local porque Windows denegó el bind de loopback; queda pendiente
 repetir el login y la autorización ADMIN end-to-end con PostgreSQL disponible.
 El cambio de C-02 es acotado y no modifica el contrato `cambiar_stock`.
+
+## Cierre en C-04
+
+C-04 consumió este contrato tal como está descripto: `VentasUnitOfWork` compone
+`libros` y `movimientos`, la venta valida y bloquea los libros en orden de id antes
+de escribir, y cada renglón descuenta por `cambiar_stock` con `venta_id`. `seed.py`
+tampoco escribe `Libro.stock` directamente: carga cada stock inicial por el mismo
+helper y registra la venta 1 con `ventas.service.crear`. Desde C-04 no queda ninguna
+escritura de stock fuera del punto único, y RN-11 vale para todo el sistema.

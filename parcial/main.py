@@ -13,7 +13,7 @@ from app.core.errores import ErrorDominio
 from app.core.security import generar_hash_ficticio, obtener_semaforo_bcrypt
 from app.modules.autores.router import router_protegido as autores_protegido_router
 from app.modules.autores.router import router_publico as autores_publico_router
-from app.modules.clientes.router import router as clientes_router
+from app.modules.clientes.router import router_protegido as clientes_router
 from app.modules.editoriales.router import router_protegido as editoriales_protegido_router
 from app.modules.editoriales.router import router_publico as editoriales_publico_router
 from app.modules.generos.router import router_protegido as generos_protegido_router
@@ -22,6 +22,7 @@ from app.modules.health.router import router as health_router
 from app.modules.libros.router import router_protegido as libros_protegido_router
 from app.modules.libros.router import router_publico as libros_publico_router
 from app.modules.usuarios.router import auth_router, eventos_router, usuarios_router
+from app.modules.ventas.router import mis_ventas_router
 from app.modules.ventas.router import router as ventas_router
 
 logging.basicConfig(
@@ -110,22 +111,24 @@ grupo_protegido = APIRouter(dependencies=[Depends(verificar_cambio_password_resu
 grupo_protegido.include_router(usuarios_router)
 grupo_protegido.include_router(eventos_router)
 
-# Clientes y ventas conservan su montaje actual hasta el cambio C-04.
+# Lecturas públicas del catálogo: se ven sin iniciar sesión.
 for router in (
     editoriales_publico_router,
     generos_publico_router,
     autores_publico_router,
     libros_publico_router,
-    clientes_router,
-    ventas_router,
 ):
     grupo_abierto.include_router(router)
 
+# Escrituras del catálogo, atención de clientes, ventas y lo propio (/mis-ventas).
 for router in (
     editoriales_protegido_router,
     generos_protegido_router,
     autores_protegido_router,
     libros_protegido_router,
+    clientes_router,
+    ventas_router,
+    mis_ventas_router,
 ):
     grupo_protegido.include_router(router)
 

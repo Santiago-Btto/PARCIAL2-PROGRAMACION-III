@@ -1,4 +1,4 @@
-from pydantic import EmailStr, field_validator
+from pydantic import ConfigDict, EmailStr, field_validator
 from sqlmodel import Field, SQLModel
 
 
@@ -9,6 +9,8 @@ def _normalizar_email(valor: str) -> str:
 
 
 class ClienteCreate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1, max_length=120)
     email: EmailStr = Field(max_length=254)
 
@@ -19,6 +21,8 @@ class ClienteCreate(SQLModel):
 
 
 class ClienteUpdate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1, max_length=120)
     email: EmailStr | None = Field(default=None, max_length=254)
 
@@ -36,6 +40,8 @@ class ClienteUpdate(SQLModel):
 
 
 class PerfilCreate(SQLModel):
+    model_config = ConfigDict(extra="forbid")
+
     telefono: str = Field(min_length=6, max_length=30)
     direccion: str = Field(min_length=1, max_length=200)
 
@@ -54,6 +60,10 @@ class ClienteResumen(SQLModel):
 
 
 class ClienteRead(ClienteResumen):
-    """Cliente con su perfil: un objeto o null, nunca una lista."""
+    """Cliente con su perfil: un objeto o null, nunca una lista.
 
+    `usuario_id` indica si el cliente tiene acceso por la web (nulo si no lo tiene).
+    """
+
+    usuario_id: int | None
     perfil: PerfilRead | None

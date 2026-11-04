@@ -54,3 +54,19 @@ def armar_pagina(items: list[T], total: int, page: int, size: int) -> Pagina[T]:
         size=size,
         pages=pages,
     )
+
+
+def convertir_pagina(pagina: Pagina, esquema: type[BaseModel]) -> Pagina:
+    """Pasa los items de una página de modelos de tabla a su contrato de salida.
+
+    Se lee cada item por atributos (from_attributes), así que las relaciones que el
+    repositorio precargó llegan a la respuesta. Si la conversión quedara en manos de
+    la serialización por defecto, un modelo de tabla se volcaría sin sus relaciones.
+    """
+    return Pagina(
+        items=[esquema.model_validate(item, from_attributes=True) for item in pagina.items],
+        total=pagina.total,
+        page=pagina.page,
+        size=pagina.size,
+        pages=pagina.pages,
+    )

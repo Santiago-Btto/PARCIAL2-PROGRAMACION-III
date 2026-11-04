@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.core.dependencies import UsuarioActualDep, requiere_rol
-from app.core.paginacion import PageQuery, Pagina, SizeQuery
+from app.core.paginacion import PageQuery, Pagina, SizeQuery, convertir_pagina
 from app.core.parametros import IdPath
 from app.modules.libros import service
 from app.modules.libros.schemas import (
@@ -25,7 +25,8 @@ async def listar_libros(
     titulo: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
     genero_id: int | None = None,
 ):
-    return await service.listar(uow, page=page, size=size, titulo=titulo, genero_id=genero_id)
+    pagina = await service.listar(uow, page=page, size=size, titulo=titulo, genero_id=genero_id)
+    return convertir_pagina(pagina, LibroListado)
 
 
 @router_publico.get("/{libro_id}", response_model=LibroDetalle)
