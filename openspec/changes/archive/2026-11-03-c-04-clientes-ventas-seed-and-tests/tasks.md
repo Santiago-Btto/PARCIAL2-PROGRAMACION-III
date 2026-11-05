@@ -29,4 +29,4 @@
 
 - [x] 4.1 Ninguna escritura de `Libro.stock` fuera de `cambiar_stock` (búsqueda en `app/` y `seed.py`).
 - [x] 4.2 Compilación de todos los módulos tocados.
-- [ ] 4.3 Ejecutar en la máquina del grupo: `alembic upgrade head`, `python seed.py`, `pytest test -q`, los cuatro `.http` en orden y las evidencias C-14 y C-15.
+- [x] 4.3 Ejecutar en la máquina del grupo: `alembic upgrade head`, `python seed.py`, `pytest test -q`, los cuatro `.http` en orden y las evidencias C-14 y C-15. Verificado el 2026-11-04 (revisión previa a C-05): ciclo de migraciones y `alembic check` limpios, seed, 149 tests en verde con PostgreSQL y C-01 a C-16 contra el servidor; evidencias en `parcial/evidencia/`.

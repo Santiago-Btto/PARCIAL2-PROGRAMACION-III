@@ -1,0 +1,49 @@
+=== Estado inicial de movimiento_stock ===
+SELECT id, libro_id, venta_id, usuario_id, cantidad, motivo
+FROM movimiento_stock
+ORDER BY id;
+ id | libro_id | venta_id | usuario_id | cantidad |    motivo     
+----+----------+----------+------------+----------+---------------
+  1 |        1 |          |          1 |       11 | Stock inicial
+  2 |        2 |          |          1 |        5 | Stock inicial
+  3 |        3 |          |          1 |       10 | Stock inicial
+  4 |        4 |          |          1 |        3 | Stock inicial
+  5 |        5 |          |          1 |        1 | Stock inicial
+  6 |        1 |        1 |          3 |       -1 | Venta #1
+  7 |        3 |        1 |          3 |       -2 | Venta #1
+  8 |        1 |        2 |          3 |       -1 | Venta #2
+  9 |        2 |        2 |          3 |       -1 | Venta #2
+ 10 |        3 |        2 |          3 |       -1 | Venta #2
+ 11 |        4 |        2 |          3 |       -1 | Venta #2
+(11 rows)
+
+=== Intento 1: UPDATE sobre movimiento_stock (debe ser RECHAZADO por el disparador) ===
+UPDATE movimiento_stock
+SET cantidad = 999
+WHERE id = 1;
+psql:test/solo_agregado.sql:18: ERROR:  La tabla movimiento_stock es de sólo agregado: no se permite UPDATE sobre sus filas (RN-12).
+CONTEXT:  PL/pgSQL function impedir_modificacion_movimiento_stock() line 3 at RAISE
+=== Intento 2: DELETE sobre movimiento_stock (debe ser RECHAZADO por el disparador) ===
+DELETE FROM movimiento_stock
+WHERE id = 1;
+psql:test/solo_agregado.sql:22: ERROR:  La tabla movimiento_stock es de sólo agregado: no se permite DELETE sobre sus filas (RN-12).
+CONTEXT:  PL/pgSQL function impedir_modificacion_movimiento_stock() line 3 at RAISE
+=== Verificación posterior: las filas siguen intactas ===
+SELECT id, libro_id, venta_id, usuario_id, cantidad, motivo
+FROM movimiento_stock
+ORDER BY id;
+ id | libro_id | venta_id | usuario_id | cantidad |    motivo     
+----+----------+----------+------------+----------+---------------
+  1 |        1 |          |          1 |       11 | Stock inicial
+  2 |        2 |          |          1 |        5 | Stock inicial
+  3 |        3 |          |          1 |       10 | Stock inicial
+  4 |        4 |          |          1 |        3 | Stock inicial
+  5 |        5 |          |          1 |        1 | Stock inicial
+  6 |        1 |        1 |          3 |       -1 | Venta #1
+  7 |        3 |        1 |          3 |       -2 | Venta #1
+  8 |        1 |        2 |          3 |       -1 | Venta #2
+  9 |        2 |        2 |          3 |       -1 | Venta #2
+ 10 |        3 |        2 |          3 |       -1 | Venta #2
+ 11 |        4 |        2 |          3 |       -1 | Venta #2
+(11 rows)
+

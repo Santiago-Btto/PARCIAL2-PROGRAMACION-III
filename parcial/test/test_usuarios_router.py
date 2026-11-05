@@ -177,13 +177,22 @@ def test_rutas_declaradas_y_parametros_id_path():
 
 
 def test_main_montaje_grupos_abierto_y_protegido():
+    from fastapi import FastAPI
+
     from main import grupo_abierto, grupo_protegido
 
+    def rutas_de(grupo):
+        # Se monta el grupo en una app aparte y se leen las rutas del esquema OpenAPI:
+        # desde FastAPI 0.15x grupo.routes guarda _IncludedRouter sin .path.
+        prueba = FastAPI()
+        prueba.include_router(grupo)
+        return list(prueba.openapi()["paths"])
+
     # auth_router debe estar en grupo_abierto
-    rutas_abiertas = [r.path for r in grupo_abierto.routes]
+    rutas_abiertas = rutas_de(grupo_abierto)
     assert any("/auth" in p for p in rutas_abiertas)
 
     # usuarios_router y eventos_router deben estar en grupo_protegido
-    rutas_protegidas = [r.path for r in grupo_protegido.routes]
+    rutas_protegidas = rutas_de(grupo_protegido)
     assert any("/usuarios" in p for p in rutas_protegidas)
     assert any("/eventos" in p for p in rutas_protegidas)

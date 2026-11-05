@@ -172,17 +172,35 @@ Paso │ Agente A (Backend Core)               │ Agente B (Backend Aux)       
 > Este change trabaja exclusivamente sobre la carpeta `despliegue/` (TP Capítulos 1 a 4) y puede ejecutarse en paralelo a `C-02`, `C-03` y `C-04`.
 
 ### [C-05] `docker-alpine-and-vps-deploy`
-- **Estado**: `[ ]` pendiente
-- **Scope**: Empaquetado en Docker Alpine del TP original (Capítulos 1 a 4) en `despliegue/`, configuración de seguridad de contenedor, documentación de despliegue y evidencias `D-01` a `D-08` en el VPS de la cátedra (Ejercicios 9 y 10)
-  - `despliegue/Dockerfile`: imagen base `python:3.12-alpine` (tamaño final `< 100 MB`, Caso `D-03`); copia e instalación de `requirements.txt` con `pip install --no-cache-dir` antes de copiar el código para aprovechar la caché de capas; creación y uso de usuario de sistema sin privilegios (`addgroup`/`adduser` + `USER`, `whoami != root`, Caso `D-04`); `EXPOSE 8000`; `HEALTHCHECK` usando `wget -qO- http://127.0.0.1:8000/health/ready || exit 1` para que el contenedor llegue a estado `(healthy)` (Caso `D-02`); comando de arranque que ejecuta `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000`
-  - `despliegue/.dockerignore` y `despliegue/env.example`: exclusión explícita de `.env`, `.venv`, `venv`, `.git`, `__pycache__` y artefactos locales para garantizar que ningún secreto quede horneado en las capas (`docker history`, Caso `D-08`); plantilla `env.example` documentando `DATABASE_URL` y `SQL_ECHO`
-  - `despliegue/DEPLOY.md`: documentación completa con la dirección pública y puerto asignado en el VPS de la cátedra, comandos exactos de `docker build` y `docker run --env-file .env --restart unless-stopped`, conexión al PostgreSQL del VPS y procedimiento paso a paso para desplegar una nueva versión con `git pull`, `docker build` y reemplazo del contenedor corriendo migraciones
-  - Verificación y evidencias en `despliegue/evidencia/`: salidas y capturas de los 8 casos de prueba de despliegue (`D-01` build limpio desde cero, `D-02` `docker ps` en estado `healthy`, `D-03` `docker images` `< 100 MB`, `D-04` `docker exec ... whoami` sin privilegios, `D-05` `GET /health/ready` público en el VPS, `D-06` `GET /libros` público con datos del seed, `D-07` `POST /ventas` público descontando stock y `D-08` ausencia de secretos en `git log -p` y `docker history`)
-- **Dependencias**: C-01
+- **Estado**: `[x]` completado y archivado (`openspec/changes/archive/2026-11-04-c-05-docker-alpine-and-vps-deploy/`) — falta correr en el VPS los casos que dependen de él (ver `despliegue/DEPLOY.md` §Pendiente en el VPS)
+- **Scope**: Empaquetar en una imagen Docker el TP de los capítulos 1 a 4 **tal como se entregó** (carpeta `despliegue/`), correrlo con `docker run` (sin Compose: PostgreSQL es el del servidor), documentar el despliegue en `DEPLOY.md` y dejar la evidencia de los casos `D-01` a `D-08` (Ejercicios 9 y 10)
+  - **Qué NO se toca**: la lógica del TP. A `despliegue/` sólo se le agregan `Dockerfile`, `.dockerignore`, `DEPLOY.md`, `evidencia/` y se ajusta `env.example` (variables del contenedor, sin valores reales). Si el TP no arranca en el contenedor por un defecto propio, se corrige lo mínimo y se anota en `DEPLOY.md`
+  - `despliegue/Dockerfile`, cada punto con su comentario:
+    - `FROM python:3.12-alpine` (el límite de **100 MB es de la imagen base**, no de la del proyecto; `python:3.12-slim` pesa 180 MB y no cumple). No se instala compilador: todas las dependencias tienen ruedas `musllinux`
+    - `COPY requirements.txt` + `pip install --no-cache-dir -r requirements.txt` **antes** de `COPY . .` (la capa de dependencias sale de la caché si sólo cambia el código)
+    - usuario sin privilegios (`addgroup -S` / `adduser -S`) activado con `USER`; el código queda de `root` y sólo legible
+    - `PYTHONUNBUFFERED=1` (los mensajes del aviso en segundo plano llegan a `docker logs` en el momento, caso `D-08`) y `PYTHONDONTWRITEBYTECODE=1`
+    - ningún secreto ni `DATABASE_URL` en el `Dockerfile`: la configuración entra con `--env-file` al correr
+    - arranque: `alembic upgrade head` y, si funcionó, `exec uvicorn app.main:app --host 0.0.0.0 --port 8000` (si la base no responde, Alembic falla y el contenedor termina con error)
+    - `HEALTHCHECK` con `wget -qO- http://127.0.0.1:8000/health/ready` (**127.0.0.1, no `localhost`**: el `wget` de Alpine resuelve `localhost` a `::1` y uvicorn escucha sólo en IPv4)
+  - `despliegue/.dockerignore`: excluye `.env`, `.venv`, `venv`, `.git`, `__pycache__`, `*.pyc`, `test/`, `evidencia/`, los `.md` y el propio `Dockerfile`
+  - `despliegue/env.example`: forma de `DATABASE_URL` (`postgresql+asyncpg://`, host `host.docker.internal` o el que dé la cátedra, nunca `localhost`) y `SQL_ECHO=false`
+  - `despliegue/DEPLOY.md`: URL pública, día y hora del despliegue, `docker build` y `docker run` completos (`-d --name libreria -p <puerto>:8000 --restart unless-stopped --env-file <archivo> [--add-host=host.docker.internal:host-gateway] libreria`, con el nombre del archivo de variables y sin su contenido), cómo se cargan los datos iniciales (`docker exec libreria python -m scripts.seed`), cambios hechos al TP para que corra en el contenedor (o "ninguno") y cómo se actualiza (build de nuevo, `docker rm -f`, mismo `docker run`; los datos viven en la base del servidor)
+  - Casos D (numeración de la consigna) con la salida de cada uno en `despliegue/evidencia/D-0N_*.txt`:
+    - `D-01` `docker images`: `python:3.12-alpine` < 100 MB y el `Dockerfile` parte de ella
+    - `D-02` servidor limpio: `docker build` + `docker run`, `docker ps` en `healthy` y en `docker logs` las migraciones aplicadas al arrancar
+    - `D-03` desde afuera del VPS en la URL pública: `GET /health/ready` 200, `GET /libros/` 200 con el seed, `POST /ventas/` 201 con el cuerpo de ejemplo del TP
+    - `D-04` `docker rm -f libreria` + mismo `docker run`: vuelve a `healthy`, los datos siguen y las migraciones no se repiten
+    - `D-05` correr la imagen sin `DATABASE_URL`: el contenedor termina con error (el TP no trae dirección por defecto)
+    - `D-06` `docker run --rm --entrypoint ls libreria -a /app` sin `.env` y `docker run --rm --entrypoint env libreria` sin `DATABASE_URL` ni contraseñas
+    - `D-07` `docker exec libreria id`: no es root
+    - `D-08` el aviso del comprobante de la venta de `D-03` aparece en `docker logs libreria` después de la línea de la respuesta
+  - `despliegue/evidencia/casos_d.sh`: los comandos de los casos D (los «comandos guardados» que pide la consigna); los corre y guarda cada salida al lado, igual en la máquina del grupo y en el VPS. Va en `evidencia/` y no en `scripts/` porque al TP sólo se le agregan `Dockerfile` y `.dockerignore`
+- **Dependencias**: C-01 (sólo la separación `parcial/` y `despliegue/`)
 - **Governance**: MEDIO
 - **Leer antes**:
+  - Consigna, Ejercicios 9 y 10, recuadros «La base no está en localhost» y «El healthcheck y localhost», y casos `D-01` a `D-08`
   - `knowledge-base/01_vision_y_objetivos.md` §Alcance v2.0 (`despliegue/`) y §Métricas de éxito
-  - `knowledge-base/02_descripcion_general.md` §Stack tecnológico y §Integraciones externas
   - `knowledge-base/06_funcionalidades.md` §Épica 5 (US-009)
   - `knowledge-base/08_arquitectura_propuesta.md` §Estructura obligatoria de directorios y §En `despliegue/`
   - `knowledge-base/10_preguntas_abiertas.md` §Preguntas abiertas (datos de conexión al VPS)

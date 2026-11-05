@@ -12,6 +12,7 @@ borrado lógico de libros y movimientos de stock de sólo agregado.
 - Santiago (completar apellido)
 - Nicolás Uriel Moron Gutierrez
 - Ignacio (completar apellido)
+- Mateo Algañaraz
 
 ## Levantar el proyecto desde cero
 
