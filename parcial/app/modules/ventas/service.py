@@ -21,7 +21,7 @@ from app.core.errores import (
 )
 from app.core.paginacion import Pagina, armar_pagina
 from app.modules.libros.models import Libro
-from app.modules.libros.stock import cambiar_stock
+from app.modules.libros.service import cambiar_stock
 from app.modules.usuarios.models import Usuario
 from app.modules.ventas.models import RenglonVenta, Venta
 from app.modules.ventas.schemas import VentaCreate
@@ -106,7 +106,6 @@ async def crear(uow: VentasUnitOfWork, datos: VentaCreate, *, usuario_id: int) -
                     venta_id=venta_id,
                 )
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
     return await _detalle(uow, venta_id)
 

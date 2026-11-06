@@ -9,9 +9,9 @@ borrado lógico de libros y movimientos de stock de sólo agregado.
 
 ## Integrantes
 
-- Santiago (completar apellido)
+- Santiago Barretto
 - Nicolás Uriel Moron Gutierrez
-- Ignacio (completar apellido)
+- Ignacio Martín Rodriguez
 - Mateo Algañaraz
 
 ## Levantar el proyecto desde cero
@@ -218,7 +218,7 @@ viajan. Dentro de un solo bloque del Unit of Work:
    dado de baja o no alcanza, 409 antes de escribir nada.
 3. Se crea la venta con sus renglones, el precio copiado de cada libro y el total
    calculado por el servidor.
-4. Cada renglón descuenta su stock por `cambiar_stock` (`app/modules/libros/stock.py`),
+4. Cada renglón descuenta su stock por `cambiar_stock` (`app/modules/libros/service.py`),
    el único punto que escribe `libro.stock`, que deja un movimiento negativo con la
    venta y el usuario que la registró.
 

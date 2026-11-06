@@ -25,7 +25,7 @@ class UsuarioRepository(BaseRepository[Usuario]):
 
     async def get_by_email(self, email: str) -> Usuario | None:
         email_limpio = email.strip().lower()
-        stmt = select(Usuario).where(func.lower(Usuario.email) == email_limpio)
+        stmt = select(Usuario).where(Usuario.email == email_limpio)
         resultado = await self.session.exec(stmt)
         return resultado.first()
 
@@ -101,7 +101,7 @@ class IntentoAccesoRepository(BaseRepository[IntentoAcceso]):
         # 1. Buscar último éxito dentro de la ventana (RN-07)
         stmt_exito = (
             select(func.max(IntentoAcceso.cuando))
-            .where(func.lower(IntentoAcceso.email) == email_limpio)
+            .where(IntentoAcceso.email == email_limpio)
             .where(IntentoAcceso.ip == ip)
             .where(IntentoAcceso.exito.is_(True))
             .where(IntentoAcceso.cuando >= ventana_desde)
@@ -112,7 +112,7 @@ class IntentoAccesoRepository(BaseRepository[IntentoAcceso]):
         stmt_fallos = (
             select(func.count())
             .select_from(IntentoAcceso)
-            .where(func.lower(IntentoAcceso.email) == email_limpio)
+            .where(IntentoAcceso.email == email_limpio)
             .where(IntentoAcceso.ip == ip)
             .where(IntentoAcceso.exito.is_(False))
             .where(IntentoAcceso.cuando >= ventana_desde)
@@ -130,7 +130,7 @@ class IntentoAccesoRepository(BaseRepository[IntentoAcceso]):
         email_limpio = email.strip().lower()
         stmt = (
             select(IntentoAcceso.cuando)
-            .where(func.lower(IntentoAcceso.email) == email_limpio)
+            .where(IntentoAcceso.email == email_limpio)
             .where(IntentoAcceso.ip == ip)
             .where(IntentoAcceso.exito.is_(False))
             .where(IntentoAcceso.cuando >= ventana_desde)

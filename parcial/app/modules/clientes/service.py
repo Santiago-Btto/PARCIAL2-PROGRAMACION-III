@@ -36,7 +36,6 @@ async def crear(uow: ClientesUnitOfWork, datos: ClienteCreate) -> Cliente:
             cliente = await uow.clientes.add(Cliente.model_validate(datos))
             cliente_id = cliente.id
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
     return await obtener(uow, cliente_id)  # type: ignore[arg-type]
 
@@ -59,7 +58,6 @@ async def actualizar(uow: ClientesUnitOfWork, cliente_id: int, datos: ClienteUpd
                 raise NoEncontrado("El cliente no existe.")
             await uow.clientes.update(cliente, datos.model_dump(exclude_unset=True))
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
     return await obtener(uow, cliente_id)
 
@@ -71,7 +69,6 @@ async def crear_perfil(
         async with uow:
             perfil = await uow.perfiles.add(PerfilCliente(cliente_id=cliente_id, **datos.model_dump()))
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
     return perfil
 

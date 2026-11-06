@@ -1,14 +1,67 @@
 """Reglas del catálogo de libros y operaciones transaccionales de stock."""
 
+from typing import TYPE_CHECKING, Protocol
+
 from sqlalchemy.exc import IntegrityError
 
-from app.core.errores import Conflicto, MapaRestricciones, NoEncontrado, traducir_integrity_error
+from app.core.errores import (
+    Conflicto,
+    DatosInvalidos,
+    MapaRestricciones,
+    NoEncontrado,
+    traducir_integrity_error,
+)
 from app.core.paginacion import Pagina
-from app.modules.libros.models import Libro, LibroAutor
+from app.core.parametros import MAX_ID
+from app.modules.libros.models import Libro, LibroAutor, MovimientoStock
 from app.modules.libros.repository import LibroRepository
 from app.modules.libros.schemas import LibroCreate, LibroUpdate, ReposicionCreate
-from app.modules.libros.stock import cambiar_stock
 from app.modules.libros.unit_of_work import LibrosUnitOfWork
+
+if TYPE_CHECKING:
+    from app.modules.libros.repository import MovimientoStockRepository
+
+    class UnidadCambioStock(Protocol):
+        libros: LibroRepository
+        movimientos: MovimientoStockRepository
+
+
+async def cambiar_stock(
+    uow: "UnidadCambioStock",
+    *,
+    libro_id: int,
+    cantidad: int,
+    usuario_id: int,
+    motivo: str,
+    venta_id: int | None = None,
+) -> Libro:
+    """Único punto de variación de stock del catálogo, reutilizable por ventas.
+
+    El llamador abre su UoW y conserva la responsabilidad de confirmar o revertir.
+    """
+    if cantidad == 0 or not motivo.strip() or len(motivo) > 200:
+        raise DatosInvalidos("La variación debe ser no nula y tener un motivo válido.")
+    libro = await uow.libros.get_for_update(libro_id)
+    if libro is None:
+        raise NoEncontrado("El libro no existe.")
+    if libro.borrado_en is not None:
+        raise Conflicto("El libro está dado de baja.")
+    nuevo_stock = libro.stock + cantidad
+    if not 0 <= nuevo_stock <= MAX_ID:
+        raise Conflicto("El stock resultante está fuera del rango permitido.")
+
+    libro.stock = nuevo_stock
+    await uow.libros.update(libro)
+    await uow.movimientos.add(
+        MovimientoStock(
+            libro_id=libro_id,
+            venta_id=venta_id,
+            usuario_id=usuario_id,
+            cantidad=cantidad,
+            motivo=motivo,
+        )
+    )
+    return libro
 
 ERRORES: MapaRestricciones = {
     "uq_libro_isbn": (Conflicto, "Ya existe un libro con ese ISBN."),

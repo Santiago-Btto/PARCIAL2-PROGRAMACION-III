@@ -16,6 +16,13 @@ solo_personal = [Depends(requiere_rol("VENDEDOR", "ADMIN"))]
 
 
 @router.post(
+    "",
+    response_model=VentaRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=solo_personal,
+    include_in_schema=False,
+)
+@router.post(
     "/",
     response_model=VentaRead,
     status_code=status.HTTP_201_CREATED,
@@ -36,6 +43,7 @@ async def crear_venta(
     return respuesta
 
 
+@router.get("", response_model=Pagina[VentaListado], dependencies=solo_personal, include_in_schema=False)
 @router.get("/", response_model=Pagina[VentaListado], dependencies=solo_personal)
 async def listar_ventas(uow: VentasUowDep, page: PageQuery = 1, size: SizeQuery = 20):
     return convertir_pagina(await service.listar(uow, page=page, size=size), VentaListado)

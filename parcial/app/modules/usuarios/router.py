@@ -105,6 +105,7 @@ usuarios_router = APIRouter(
 )
 
 
+@usuarios_router.post("/", status_code=201, response_model=UsuarioOut, include_in_schema=False)
 @usuarios_router.post("", status_code=201, response_model=UsuarioOut)
 async def crear_personal_endpoint(
     uow: UsuariosUoWDep,
@@ -156,6 +157,7 @@ eventos_router = APIRouter(
 )
 
 
+@eventos_router.get("/", status_code=200, response_model=Pagina[EventoSeguridadOut], include_in_schema=False)
 @eventos_router.get("", status_code=200, response_model=Pagina[EventoSeguridadOut])
 async def listar_eventos_endpoint(
     uow: UsuariosUoWDep,

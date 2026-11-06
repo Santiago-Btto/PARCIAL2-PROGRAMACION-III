@@ -13,7 +13,7 @@ import app.core.modelos  # noqa: F401
 from app.core.errores import Conflicto, DatosInvalidos, NoEncontrado
 from app.core.parametros import MAX_ID
 from app.modules.libros.models import Libro
-from app.modules.libros.stock import cambiar_stock
+from app.modules.libros.service import cambiar_stock
 
 
 @pytest.fixture

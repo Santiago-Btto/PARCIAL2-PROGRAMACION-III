@@ -26,7 +26,6 @@ async def crear(uow: EditorialesUnitOfWork, datos: EditorialCreate) -> Editorial
             entidad = await uow.editoriales.add(Editorial.model_validate(datos))
         return entidad
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
 
 
@@ -51,7 +50,6 @@ async def actualizar(
             entidad = await _obtener(uow, editorial_id)
             return await uow.editoriales.update(entidad, datos.model_dump(exclude_unset=True))
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
 
 

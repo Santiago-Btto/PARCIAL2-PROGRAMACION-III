@@ -15,11 +15,15 @@ router_protegido = APIRouter(
 )
 
 
+@router_protegido.post(
+    "", response_model=EditorialRead, status_code=status.HTTP_201_CREATED, include_in_schema=False
+)
 @router_protegido.post("/", response_model=EditorialRead, status_code=status.HTTP_201_CREATED)
 async def crear_editorial(datos: EditorialCreate, uow: EditorialesUowDep):
     return await service.crear(uow, datos)
 
 
+@router_publico.get("", response_model=Pagina[EditorialRead], include_in_schema=False)
 @router_publico.get("/", response_model=Pagina[EditorialRead])
 async def listar_editoriales(
     uow: EditorialesUowDep, page: PageQuery = 1, size: SizeQuery = 20

@@ -23,7 +23,6 @@ async def crear(uow: AutoresUnitOfWork, datos: AutorCreate) -> Autor:
             entidad = await uow.autores.add(Autor.model_validate(datos))
         return entidad
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
 
 
@@ -48,7 +47,6 @@ async def actualizar(
             entidad = await _obtener(uow, autor_id)
             return await uow.autores.update(entidad, datos.model_dump(exclude_unset=True))
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
 
 

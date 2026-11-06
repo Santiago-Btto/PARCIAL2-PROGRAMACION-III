@@ -15,11 +15,15 @@ router_protegido = APIRouter(
 )
 
 
+@router_protegido.post(
+    "", response_model=GeneroRead, status_code=status.HTTP_201_CREATED, include_in_schema=False
+)
 @router_protegido.post("/", response_model=GeneroRead, status_code=status.HTTP_201_CREATED)
 async def crear_genero(datos: GeneroCreate, uow: GenerosUowDep):
     return await service.crear(uow, datos)
 
 
+@router_publico.get("", response_model=Pagina[GeneroRead], include_in_schema=False)
 @router_publico.get("/", response_model=Pagina[GeneroRead])
 async def listar_generos(
     uow: GenerosUowDep, page: PageQuery = 1, size: SizeQuery = 20

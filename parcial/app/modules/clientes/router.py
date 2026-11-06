@@ -28,11 +28,15 @@ router_protegido = APIRouter(
 )
 
 
+@router_protegido.post(
+    "", response_model=ClienteRead, status_code=status.HTTP_201_CREATED, include_in_schema=False
+)
 @router_protegido.post("/", response_model=ClienteRead, status_code=status.HTTP_201_CREATED)
 async def crear_cliente(datos: ClienteCreate, uow: ClientesUowDep):
     return _leer(await service.crear(uow, datos))
 
 
+@router_protegido.get("", response_model=Pagina[ClienteRead], include_in_schema=False)
 @router_protegido.get("/", response_model=Pagina[ClienteRead])
 async def listar_clientes(uow: ClientesUowDep, page: PageQuery = 1, size: SizeQuery = 20):
     return convertir_pagina(await service.listar(uow, page=page, size=size), ClienteRead)

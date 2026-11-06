@@ -17,6 +17,7 @@ router_protegido = APIRouter(
 )
 
 
+@router_publico.get("", response_model=Pagina[LibroListado], include_in_schema=False)
 @router_publico.get("/", response_model=Pagina[LibroListado])
 async def listar_libros(
     uow: LibrosUowDep,
@@ -34,6 +35,9 @@ async def obtener_libro(libro_id: IdPath, uow: LibrosUowDep):
     return LibroDetalle.desde(await service.obtener_detalle(uow, libro_id))
 
 
+@router_protegido.post(
+    "", response_model=LibroDetalle, status_code=status.HTTP_201_CREATED, include_in_schema=False
+)
 @router_protegido.post("/", response_model=LibroDetalle, status_code=status.HTTP_201_CREATED)
 async def crear_libro(datos: LibroCreate, uow: LibrosUowDep, usuario: UsuarioActualDep):
     return LibroDetalle.desde(await service.crear(uow, datos, usuario_id=usuario.id))

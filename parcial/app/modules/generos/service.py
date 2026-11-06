@@ -26,7 +26,6 @@ async def crear(uow: GenerosUnitOfWork, datos: GeneroCreate) -> Genero:
             entidad = await uow.generos.add(Genero.model_validate(datos))
         return entidad
     except IntegrityError as exc:
-        await uow.rollback()
         raise traducir_integrity_error(exc, ERRORES) from None
 
 

@@ -43,7 +43,7 @@ from app.core.modelos import (
     Usuario,
 )
 from app.core.security import hashear_password
-from app.modules.libros.stock import cambiar_stock
+from app.modules.libros.service import cambiar_stock
 from app.modules.ventas import service as ventas_service
 from app.modules.ventas.schemas import RenglonCreate, VentaCreate
 from app.modules.ventas.unit_of_work import VentasUnitOfWork

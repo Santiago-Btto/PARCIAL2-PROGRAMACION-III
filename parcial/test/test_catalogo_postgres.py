@@ -20,7 +20,7 @@ from app.core.errores import DatosInvalidos
 from app.core.errores import Conflicto, NoEncontrado
 from app.modules.libros import service
 from app.modules.libros.schemas import LibroCreate, LibroUpdate, ReposicionCreate
-from app.modules.libros.stock import cambiar_stock
+from app.modules.libros.service import cambiar_stock
 from app.modules.usuarios.models import Usuario
 from app.modules.clientes.models import Cliente
 from app.modules.ventas.models import Venta

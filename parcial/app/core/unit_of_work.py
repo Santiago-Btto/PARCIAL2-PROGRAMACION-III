@@ -3,7 +3,7 @@
 Es un gestor de contexto asincrónico:
 - Recibe la AsyncSession de la petición (la misma que usan las dependencias de auth).
 - Al salir normalmente del bloque `async with`, confirma la transacción (`commit()`).
-- Si se sale con una excepción, revierte la transacción (`rollback()`).
+- Si se sale con una excepción (o si falla el `commit()`), revierte la transacción (`rollback()`).
 - NO cierra la sesión (`close()`), porque no la creó: la creó `get_session`.
 """
 
@@ -29,7 +29,11 @@ class UnitOfWork:
         if exc_type is not None:
             await self.rollback()
         else:
-            await self.commit()
+            try:
+                await self.commit()
+            except Exception:
+                await self.rollback()
+                raise
 
     async def commit(self) -> None:
         await self.session.commit()

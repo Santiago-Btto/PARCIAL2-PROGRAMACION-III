@@ -14,11 +14,15 @@ router_protegido = APIRouter(
 )
 
 
+@router_protegido.post(
+    "", response_model=AutorRead, status_code=status.HTTP_201_CREATED, include_in_schema=False
+)
 @router_protegido.post("/", response_model=AutorRead, status_code=status.HTTP_201_CREATED)
 async def crear_autor(datos: AutorCreate, uow: AutoresUowDep):
     return await service.crear(uow, datos)
 
 
+@router_publico.get("", response_model=Pagina[AutorRead], include_in_schema=False)
 @router_publico.get("/", response_model=Pagina[AutorRead])
 async def listar_autores(
     uow: AutoresUowDep, page: PageQuery = 1, size: SizeQuery = 20
