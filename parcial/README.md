@@ -13,6 +13,7 @@ borrado lógico de libros y movimientos de stock de sólo agregado.
 - Nicolás Uriel Moron Gutierrez
 - Ignacio Martín Rodriguez
 - Mateo Algañaraz
+- Ezequiel Menéndez
 
 ## Levantar el proyecto desde cero
 
